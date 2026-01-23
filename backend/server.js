@@ -18,6 +18,8 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const productRoutes = require('./routes/productRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const stockTransferRoutes = require('./routes/stockTransferRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -45,6 +47,8 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/stock-transfers', stockTransferRoutes);
+app.use('/api/orders', orderRoutes);
 
 // 404 handler
 app.use((req, res, next) => {
