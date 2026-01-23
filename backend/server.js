@@ -16,6 +16,8 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 const authRoutes = require('./routes/authRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const productRoutes = require('./routes/productRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -41,6 +43,8 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // 404 handler
 app.use((req, res, next) => {
