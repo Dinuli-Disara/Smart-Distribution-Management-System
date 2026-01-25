@@ -3,31 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { KPICard } from "../../components/common/KPICard";
-import { 
-  DollarSign, 
-  TrendingUp, 
-  Truck,
-  Users,
-  Package,
-  FileText,
-  Bell,
-  BarChart3,
-  UserPlus,
-  Calendar,
-  LogOut
-} from "lucide-react";
-import { 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend 
-} from "recharts";
+import { DollarSign, TrendingUp, Truck, Users, Package, FileText, Bell, BarChart3, UserPlus, Calendar, LogOut} from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Button } from "../../components/ui/button";
 import { Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/form-components";
