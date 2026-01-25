@@ -1,5 +1,5 @@
 // frontend-web/src/pages/auth/Login.tsx
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,11 +22,18 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   
+  useEffect(() => {
+    console.log('Login MOUNTED');
+    return () => {
+      console.log('Login UNMOUNTED');
+    };
+  }, []);
+  
   const [formData, setFormData] = useState<FormData>({
     username: '',
     password: '',
   });
-  const [error, setError] = useState<String>('');
+  const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -34,7 +41,6 @@ const Login: React.FC = () => {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setError('');
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -44,7 +50,6 @@ const Login: React.FC = () => {
 
     if (!formData.username || !formData.password) {
       setError('Please enter both username and password');
-      setLoading(false);
       return;
     }
 
@@ -64,6 +69,7 @@ const Login: React.FC = () => {
         setError(result.message || 'Login failed');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -95,7 +101,6 @@ const Login: React.FC = () => {
             {/* Logo Section */}
             <div className="pt-8 pb-6 px-8 text-center bg-white">
               <div className="inline-block">
-                {/* Replace with your actual logo */}
                 <img 
                   src="/logo.png" 
                   alt="Dreamron Logo" 
@@ -213,28 +218,6 @@ const Login: React.FC = () => {
                   </button>
                 </div>
               </form>
-
-              {/* Test Credentials */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="text-xs text-gray-500 text-center mb-3">Test Credentials:</p>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-center p-2 bg-gray-50 rounded">
-                    <p className="font-semibold text-gray-700">Owner</p>
-                    <p className="text-gray-600">admin</p>
-                    <p className="text-gray-500">admin123</p>
-                  </div>
-                  <div className="text-center p-2 bg-gray-50 rounded">
-                    <p className="font-semibold text-gray-700">Clerk</p>
-                    <p className="text-gray-600">clerk</p>
-                    <p className="text-gray-500">clerk123</p>
-                  </div>
-                  <div className="text-center p-2 bg-gray-50 rounded">
-                    <p className="font-semibold text-gray-700">Sales</p>
-                    <p className="text-gray-600">salesrep</p>
-                    <p className="text-gray-500">sales123</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
