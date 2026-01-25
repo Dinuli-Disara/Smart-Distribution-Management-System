@@ -2,18 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { KPICard } from "../../components/common/KPICard";
 import { DollarSign, TrendingUp, Truck } from "lucide-react";
-import { 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend 
-} from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 // TODO: Replace with API calls
 const salesData = [
