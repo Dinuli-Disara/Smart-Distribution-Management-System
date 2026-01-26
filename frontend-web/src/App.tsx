@@ -4,7 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Login from './pages/auth/Login';
 import OwnerDashboard from './pages/owner/Dashboard';
-import {ClerkDashboard} from './pages/clerk/ClerkDashboard';
+import {ClerkDashboard} from './pages/clerk/Dashboard';
 import { SalesRepDashboard } from './pages/salesRep/Dashboard';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';

@@ -114,10 +114,9 @@ const Login: React.FC = () => {
             {/* Logo Section */}
             <div className="pt-8 pb-6 px-8 text-center bg-white">
               <div className="inline-block">
-                {/* Replace with your actual logo */}
-                <img 
-                  src="/logo.png" 
-                  alt="Dreamron Logo" 
+                <img
+                  src="/logo.png"
+                  alt="Dreamron Logo"
                   className="h-16 w-auto mx-auto"
                   onError={(e) => {
                     // Fallback if logo doesn't exist
