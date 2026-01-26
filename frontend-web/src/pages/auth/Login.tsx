@@ -1,7 +1,12 @@
 // frontend-web/src/pages/auth/Login.tsx
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+=======
+import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+>>>>>>> Stashed changes
 =======
 import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -27,8 +32,11 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   
 =======
+=======
+>>>>>>> Stashed changes
 
   useEffect(() => {
     console.log('Login MOUNTED');
@@ -37,6 +45,9 @@ const Login: React.FC = () => {
     };
   }, []);
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
   const [formData, setFormData] = useState<FormData>({
     username: '',
@@ -124,10 +135,16 @@ const Login: React.FC = () => {
             <div className="pt-8 pb-6 px-8 text-center bg-white">
               <div className="inline-block">
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                 {/* Replace with your actual logo */}
                 <img 
                   src="/logo.png" 
                   alt="Dreamron Logo" 
+=======
+                <img
+                  src="/logo.png"
+                  alt="Dreamron Logo"
+>>>>>>> Stashed changes
 =======
                 <img
                   src="/logo.png"

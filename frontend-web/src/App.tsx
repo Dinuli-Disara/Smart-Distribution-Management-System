@@ -10,6 +10,9 @@ import {ClerkDashboard} from './pages/clerk/Dashboard';
 import { SalesRepDashboard } from './pages/salesRep/Dashboard';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 function App() {
