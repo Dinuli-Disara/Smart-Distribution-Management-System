@@ -34,6 +34,9 @@ function App() {
             path="/clerk/dashboard"
             element={
               <ProtectedRoute allowedRoles={['Clerk']}>
+                <ClerkDashboard onNavigate={function (view: string): void {
+                  throw new Error('Function not implemented.');
+                } } />
                 <ClerkDashboard />
               </ProtectedRoute>
             }
