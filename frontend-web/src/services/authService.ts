@@ -82,6 +82,25 @@ const authService = {
       newPassword,
     });
   },
+
+  // Forgot password - request reset token
+  forgotPassword: async (email: string): Promise<any> => {
+    return await api.post('/auth/forgot-password', { email });
+  },
+
+  // Reset password with token
+  resetPassword: async (token: string, newPassword: string): Promise<any> => {
+    return await api.post('/auth/reset-password', {
+      token,
+      newPassword,
+    });
+  },
+
+  // Verify reset token
+  verifyResetToken: async (token: string): Promise<any> => {
+    return await api.get(`/auth/verify-reset-token/${token}`);
+  },
+
 };
 
 export default authService;

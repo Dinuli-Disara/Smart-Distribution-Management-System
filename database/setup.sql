@@ -26,6 +26,8 @@ CREATE TABLE Employee (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by INT NULL,
     updated_by INT NULL,
+    password_reset_token VARCHAR(255) NULL,
+    password_reset_expires DATETIME NULL,
     INDEX idx_employee_role (role)
 );
 

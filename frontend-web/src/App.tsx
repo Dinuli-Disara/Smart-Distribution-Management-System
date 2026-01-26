@@ -4,6 +4,13 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Login from './pages/auth/Login';
 import OwnerDashboard from './pages/owner/Dashboard';
+<<<<<<< Updated upstream
+=======
+import {ClerkDashboard} from './pages/clerk/Dashboard';
+import { SalesRepDashboard } from './pages/salesRep/Dashboard';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
+>>>>>>> Stashed changes
 
 function App() {
   return (
@@ -12,6 +19,8 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           
           {/* Protected Routes - Owner */}
           <Route
@@ -43,12 +52,9 @@ function App() {
             path="/sales/dashboard"
             element={
               <ProtectedRoute allowedRoles={['Sales Representative']}>
-                <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                  <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Sales Representative Dashboard</h1>
-                    <p className="text-gray-600 mt-2">Coming soon...</p>
-                  </div>
-                </div>
+                <SalesRepDashboard onNavigate={function (view: string): void {
+                  throw new Error('Function not implemented.');
+                } } />
               </ProtectedRoute>
             }
           />
