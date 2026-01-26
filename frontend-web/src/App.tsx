@@ -37,7 +37,6 @@ function App() {
                 <ClerkDashboard onNavigate={function (view: string): void {
                   throw new Error('Function not implemented.');
                 } } />
-                <ClerkDashboard />
               </ProtectedRoute>
             }
           />
