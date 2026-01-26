@@ -91,13 +91,21 @@ const Employee = sequelize.define('Employee', {
   updated_by: {
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  password_reset_token: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  password_reset_expires: {
+    type: DataTypes.DATE,
+    allowNull: true,
   }
 }, {
   tableName: 'Employee',
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
-  
+
   // Hooks for password hashing
   hooks: {
     beforeCreate: async (employee) => {
@@ -116,12 +124,67 @@ const Employee = sequelize.define('Employee', {
 });
 
 // Instance method to compare password
-Employee.prototype.comparePassword = async function(candidatePassword) {
+Employee.prototype.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Instance method to create password reset token
+Employee.prototype.createPasswordResetToken = function() {
+  const crypto = require('crypto');
+  
+  // Generate random token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  
+  // Hash token for storage in database
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  
+  // Set token and expiry (10 minutes)
+  this.password_reset_token = hashedToken;
+  this.password_reset_expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  
+  // Return plain token for email
+  return resetToken;
+};
+
+// Instance method to clear password reset token
+Employee.prototype.clearPasswordResetToken = function() {
+  this.password_reset_token = null;
+  this.password_reset_expires = null;
+  return this;
+};
+
+// Instance method to check if reset token is valid
+Employee.prototype.isResetTokenValid = function() {
+  if (!this.password_reset_token || !this.password_reset_expires) {
+    return false;
+  }
+  return Date.now() < this.password_reset_expires;
+};
+
+// Instance method to validate reset token
+Employee.prototype.validateResetToken = function(token) {
+  const crypto = require('crypto');
+  
+  if (!token || !this.password_reset_token) {
+    return false;
+  }
+  
+  // Hash the provided token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  
+  // Compare with stored token and check expiry
+  return hashedToken === this.password_reset_token && 
+         this.isResetTokenValid();
+};
+
 // Instance method to hide password in JSON response
-Employee.prototype.toJSON = function() {
+Employee.prototype.toJSON = function () {
   const values = { ...this.get() };
   delete values.password;
   return values;

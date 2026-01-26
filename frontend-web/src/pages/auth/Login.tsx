@@ -1,27 +1,29 @@
 // frontend-web/src/pages/auth/Login.tsx
 import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 // Define form data type 
-interface FormData { 
-  username: string; 
-  password: string; 
-} 
+interface FormData {
+  username: string;
+  password: string;
+}
 
 // Define login result type (adjust based on your AuthContext) 
-interface LoginResult { 
-  success: boolean; 
-  message?: string; 
-  data?: { 
-    role: string; 
-  }; 
+interface LoginResult {
+  success: boolean;
+  message?: string;
+  data?: {
+    role: string;
+  };
 }
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   
+
   useEffect(() => {
     console.log('Login MOUNTED');
     return () => {
@@ -29,12 +31,18 @@ const Login: React.FC = () => {
     };
   }, []);
   
+
   const [formData, setFormData] = useState<FormData>({
     username: '',
     password: '',
   });
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+
+  // Debug: log error state changes
+  useEffect(() => {
+    console.log('Error state changed:', error);
+  }, [error]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -44,20 +52,26 @@ const Login: React.FC = () => {
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    console.log('Form submitted');
     e.preventDefault();
+    e.stopPropagation();
     setError('');
     setLoading(true);
 
     if (!formData.username || !formData.password) {
+      console.log('Validation error: missing fields');
       setError('Please enter both username and password');
       return;
     }
 
     try {
+      console.log('Attempting login with username:', formData.username);
       const result = await login(formData.username, formData.password);
-      
+      console.log('Login result:', result);
+
       if (result.success) {
         const role = result.data?.role;
+        console.log('Login successful, role:', role);
         if (role === 'Owner') {
           navigate('/owner/dashboard');
         } else if (role === 'Clerk') {
@@ -66,12 +80,13 @@ const Login: React.FC = () => {
           navigate('/sales/dashboard');
         }
       } else {
+        console.log('Login failed with error:', result.message);
         setError(result.message || 'Login failed');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Login error:', err);
       setError('An error occurred. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -79,7 +94,7 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Background Image with Overlay */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: "url('/background.jpg')",
@@ -109,7 +124,7 @@ const Login: React.FC = () => {
                     // Fallback if logo doesn't exist
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
-                    if (target.nextSibling instanceof HTMLElement) { 
+                    if (target.nextSibling instanceof HTMLElement) {
                       target.nextSibling.style.display = 'block';
                     }
                   }}
@@ -120,7 +135,7 @@ const Login: React.FC = () => {
                   <div className="text-xs text-gray-600 mt-1">A WORLD CLASS YOU</div>
                 </div>
               </div>
-              
+
               <h2 className="mt-4 text-2xl font-bold text-gray-900">
                 Manjula Marketing DMS
               </h2>
@@ -192,9 +207,12 @@ const Login: React.FC = () => {
 
                 {/* Forgot Password Link */}
                 <div className="flex items-center justify-end">
-                  <a href="#" className="text-sm font-medium text-pink-600 hover:text-pink-700 transition duration-200">
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm font-medium text-pink-600 hover:text-pink-700 transition duration-200"
+                  >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
 
                 {/* Sign In Button */}
