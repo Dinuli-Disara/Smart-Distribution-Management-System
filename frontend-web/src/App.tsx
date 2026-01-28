@@ -4,8 +4,8 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Login from './pages/auth/Login';
 import OwnerDashboard from './pages/owner/Dashboard';
-import {ClerkDashboard} from './pages/clerk/Dashboard';
-import { SalesRepDashboard } from './pages/salesRep/Dashboard';
+import ClerkDashboard from './pages/clerk/Dashboard';
+import SalesRepDashboard from './pages/salesRep/Dashboard';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 
@@ -34,9 +34,7 @@ function App() {
             path="/clerk/dashboard"
             element={
               <ProtectedRoute allowedRoles={['Clerk']}>
-                <ClerkDashboard onNavigate={function (view: string): void {
-                  throw new Error('Function not implemented.');
-                } } />
+                <ClerkDashboard/>
               </ProtectedRoute>
             }
           />
@@ -46,9 +44,7 @@ function App() {
             path="/sales/dashboard"
             element={
               <ProtectedRoute allowedRoles={['Sales Representative']}>
-                <SalesRepDashboard onNavigate={function (view: string): void {
-                  throw new Error('Function not implemented.');
-                } } />
+                <SalesRepDashboard />
               </ProtectedRoute>
             }
           />

@@ -1,18 +1,16 @@
 // backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const Employee = require('../models/Employee');
+const Customer = require('../models/Customer'); // Add this
 
-// Protect routes - Check if user is authenticated
 exports.protect = async (req, res, next) => {
   try {
     let token;
 
-    // Check for token in headers
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    // Make sure token exists
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -21,31 +19,55 @@ exports.protect = async (req, res, next) => {
     }
 
     try {
-      // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Check if user still exists and is active
-      const employee = await Employee.findOne({
-        where: {
-          employee_id: decoded.id,
-          is_active: true
-        }
-      });
-
-      if (!employee) {
-        return res.status(401).json({
-          success: false,
-          message: 'User no longer exists or is inactive'
+      
+      // Check if it's a customer token
+      if (decoded.type === 'customer') {
+        const customer = await Customer.findOne({
+          where: {
+            customer_id: decoded.id,
+            is_active: true
+          }
         });
-      }
 
-      // Add user info to request
-      req.user = {
-        id: employee.employee_id,
-        role: employee.role,
-        name: employee.name,
-        email: employee.email
-      };
+        if (!customer) {
+          return res.status(401).json({
+            success: false,
+            message: 'Customer no longer exists or is inactive'
+          });
+        }
+
+        req.user = {
+          id: customer.customer_id,
+          role: 'customer', // Fixed role
+          type: 'customer',
+          name: customer.name,
+          email: customer.email
+        };
+      } else {
+        // It's an employee token
+        const employee = await Employee.findOne({
+          where: {
+            employee_id: decoded.id,
+            is_active: true
+          }
+        });
+
+        if (!employee) {
+          return res.status(401).json({
+            success: false,
+            message: 'User no longer exists or is inactive'
+          });
+        }
+
+        req.user = {
+          id: employee.employee_id,
+          role: employee.role,
+          type: 'employee',
+          name: employee.name,
+          email: employee.email
+        };
+      }
 
       next();
     } catch (err) {

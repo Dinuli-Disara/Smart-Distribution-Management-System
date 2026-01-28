@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Button } from "../../components/ui/button";
 import { Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/form-components";
-import { UserPlus } from "lucide-react";
+import { UserPlus, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 
 // TODO: Replace with API calls
 const initialEmployeeData = [
@@ -17,6 +17,13 @@ const initialEmployeeData = [
 
 export default function EmployeesView() {
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [employeeToUpdate, setEmployeeToUpdate] = useState<{
+    id: number;
+    name: string;
+    currentStatus: boolean;
+  } | null>(null);
+
   const [employees, setEmployees] = useState(initialEmployeeData);
   const [newEmployee, setNewEmployee] = useState({
     name: '',
@@ -27,13 +34,30 @@ export default function EmployeesView() {
     contact: ''
   });
 
-  const toggleEmployeeStatus = (id: number) => {
+  const openConfirmationDialog = (employee: typeof initialEmployeeData[0]) => {
+    setEmployeeToUpdate({
+      id: employee.id,
+      name: employee.name,
+      currentStatus: employee.isActive
+    });
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!employeeToUpdate) return;
+    
     // TODO: Call API to update employee status
     setEmployees(prevEmployees => 
       prevEmployees.map(emp => 
-        emp.id === id ? { ...emp, isActive: !emp.isActive } : emp
+        emp.id === employeeToUpdate.id 
+          ? { ...emp, isActive: !emp.isActive } 
+          : emp
       )
     );
+
+    // Close dialog and reset
+    setShowConfirmDialog(false);
+    setEmployeeToUpdate(null);
   };
 
   const handleAddEmployee = () => {
@@ -48,7 +72,7 @@ export default function EmployeesView() {
     };
     setEmployees([...employees, newEmp]);
     setShowAddEmployee(false);
-    
+
     // Reset form
     setNewEmployee({
       name: '',
@@ -87,31 +111,29 @@ export default function EmployeesView() {
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.name}</TableCell>
                   <TableCell>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      employee.role === 'Sales Representative' 
-                        ? 'bg-blue-100 text-blue-900' 
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${employee.role === 'Sales Representative'
+                        ? 'bg-blue-100 text-blue-900'
                         : 'bg-pink-100 text-pink-700'
-                    }`}>
+                      }`}>
                       {employee.role}
                     </span>
                   </TableCell>
                   <TableCell>{employee.contact}</TableCell>
                   <TableCell>{employee.email}</TableCell>
                   <TableCell>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      employee.isActive
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${employee.isActive
                         ? 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-600'
-                    }`}>
+                      }`}>
                       {employee.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
                   <TableCell>
                     <Button
-                      onClick={() => toggleEmployeeStatus(employee.id)}
+                      onClick={() => openConfirmationDialog(employee)}
                       variant={employee.isActive ? "outline" : "default"}
-                      className={employee.isActive 
-                        ? "border-red-500 text-red-600 hover:bg-red-50" 
+                      className={employee.isActive
+                        ? "border-red-500 text-red-600 hover:bg-red-50"
                         : "bg-green-600 hover:bg-green-700 text-white"
                       }
                     >
@@ -125,6 +147,55 @@ export default function EmployeesView() {
         </CardContent>
       </Card>
 
+      {/* Simpler Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Action</DialogTitle>
+          </DialogHeader>
+
+          {employeeToUpdate && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                <p className="text-lg font-medium text-gray-900">
+                  {employeeToUpdate.currentStatus ? 'Deactivate' : 'Activate'} Employee
+                </p>
+                <p className="text-gray-600 mt-2">
+                  Are you sure you want to {employeeToUpdate.currentStatus ? 'deactivate' : 'activate'}
+                  <span className="font-semibold"> {employeeToUpdate.name}</span>?
+                </p>
+                <p className="text-sm text-gray-500 mt-3">
+                  {employeeToUpdate.currentStatus
+                    ? 'This employee will lose access to the system.'
+                    : 'This employee will regain access to the system.'
+                  }
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => setShowConfirmDialog(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmStatusChange}
+                  className={`flex-1 ${employeeToUpdate.currentStatus
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                >
+                  {employeeToUpdate.currentStatus ? 'Deactivate' : 'Activate'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Add Employee Dialog */}
       <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
         <DialogContent className="max-w-md">
@@ -134,67 +205,67 @@ export default function EmployeesView() {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input 
-                placeholder="Enter employee name" 
+              <Input
+                placeholder="Enter employee name"
                 value={newEmployee.name}
-                onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input 
+              <Input
                 type="email"
-                placeholder="Enter email" 
+                placeholder="Enter email"
                 value={newEmployee.email}
-                onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Contact</Label>
-              <Input 
-                placeholder="Enter contact number" 
+              <Input
+                placeholder="Enter contact number"
                 value={newEmployee.contact}
-                onChange={(e) => setNewEmployee({...newEmployee, contact: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, contact: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Username</Label>
-              <Input 
-                placeholder="Enter username" 
+              <Input
+                placeholder="Enter username"
                 value={newEmployee.username}
-                onChange={(e) => setNewEmployee({...newEmployee, username: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input 
-                type="password" 
-                placeholder="Enter password" 
+              <Input
+                type="password"
+                placeholder="Enter password"
                 value={newEmployee.password}
-                onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
-              <select 
+              <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={newEmployee.role}
-                onChange={(e) => setNewEmployee({...newEmployee, role: e.target.value})}
+                onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
               >
                 <option value="Sales Representative">Sales Representative</option>
                 <option value="Clerk">Clerk</option>
               </select>
             </div>
             <div className="flex gap-3 pt-4">
-              <Button 
+              <Button
                 onClick={handleAddEmployee}
                 className="flex-1 bg-blue-900 hover:bg-blue-800"
               >
                 Confirm
               </Button>
-              <Button 
-                onClick={() => setShowAddEmployee(false)} 
-                variant="outline" 
+              <Button
+                onClick={() => setShowAddEmployee(false)}
+                variant="outline"
                 className="flex-1"
               >
                 Cancel

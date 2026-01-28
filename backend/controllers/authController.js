@@ -14,6 +14,23 @@ const generateToken = (id, role) => {
   );
 };
 
+// Add this function to generate mobile deep links
+const generateResetLinks = (token) => {
+  const webUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+  
+  // Mobile deep link - using your app's custom scheme
+  const mobileDeepLink = `manjuladms://reset-password/${token}`;
+  
+  // Alternative: Universal link (iOS) / App Link (Android)
+  const universalLink = `${process.env.MOBILE_APP_URL}/reset-password/${token}`;
+  
+  return {
+    webUrl,
+    mobileDeepLink,
+    universalLink
+  };
+};
+
 // @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
@@ -209,7 +226,6 @@ exports.forgotPassword = async (req, res) => {
     console.log('=============================================\n');
 
     // For security, don't reveal if user exists
-    // Always return success response
     if (!employee) {
       return res.status(200).json({
         success: true,
@@ -221,71 +237,114 @@ exports.forgotPassword = async (req, res) => {
     const resetToken = employee.createPasswordResetToken();
     await employee.save();
 
-    // Create reset URL
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    // Generate all types of reset links
+    const links = generateResetLinks(resetToken);
 
-    // ========== ADD THESE CONSOLE LOGS ==========
     console.log('\n========== PASSWORD RESET TOKEN ==========');
     console.log('For employee:', employee.name);
     console.log('Email:', employee.email);
     console.log('Reset Token:', resetToken);
-    console.log('Reset URL:', resetUrl);
-    console.log('Frontend URL:', process.env.FRONTEND_URL);
+    console.log('Web URL:', links.webUrl);
+    console.log('Mobile Deep Link:', links.mobileDeepLink);
     console.log('===========================================\n');
-    // ============================================
 
-    // Create email message
+    // Create email message with mobile app support
     const message = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h2 style="color: #1E3EA6; margin-bottom: 10px;">Dreamron DMS</h2>
-          <p style="color: #666; font-size: 14px;">Password Reset Request</p>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(to right, #1E3EA6, #D20073); color: white; padding: 30px; text-align: center; }
+          .content { padding: 30px; }
+          .button { 
+            display: inline-block; 
+            padding: 14px 28px; 
+            background: linear-gradient(to right, #1E3EA6, #D20073); 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 16px;
+            margin: 10px 5px;
+          }
+          .card { background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #1E3EA6; }
+          .link-box { background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 15px 0; font-family: monospace; font-size: 12px; word-break: break-all; }
+          .instructions { background: #e3f2fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; padding: 20px; border-top: 1px solid #eee; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 24px;">Dreamron DMS</h1>
+            <p style="margin: 5px 0 0; opacity: 0.9;">Password Reset Request</p>
+          </div>
+          
+          <div class="content">
+            <h2>Hello ${employee.name},</h2>
+            <p>You requested a password reset for your Dreamron DMS account.</p>
+            
+            <div class="card">
+              <h3 style="margin-top: 0;">📱 Open in Mobile App</h3>
+              <p>Click this button to open directly in the mobile app:</p>
+              <div style="text-align: center;">
+                <a href="${links.mobileDeepLink}" class="button">
+                  Open in Mobile App
+                </a>
+              </div>
+              <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                If the app doesn't open automatically, copy and paste this link:
+              </p>
+              <div class="link-box">${links.mobileDeepLink}</div>
+            </div>
+            
+            <div class="card">
+              <h3 style="margin-top: 0;">🌐 Open in Web Browser</h3>
+              <p>Click this button to open in your web browser:</p>
+              <div style="text-align: center;">
+                <a href="${links.webUrl}" class="button" style="background: #4CAF50;">
+                  Open in Browser
+                </a>
+              </div>
+              <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                Or copy and paste this link:
+              </p>
+              <div class="link-box">${links.webUrl}</div>
+            </div>
+            
+            <div class="instructions">
+              <h4 style="margin-top: 0; color: #1E40AF;">📝 Instructions:</h4>
+              <ol style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>Mobile Users:</strong> Click "Open in Mobile App" button</li>
+                <li><strong>Desktop Users:</strong> Click "Open in Browser" button</li>
+                <li><strong>If buttons don't work:</strong> Copy the appropriate link above</li>
+                <li><strong>Link expires:</strong> In 10 minutes</li>
+              </ol>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;">
+              <strong>Note:</strong> If you didn't request this password reset, please ignore this email.
+              Your account security is important to us.
+            </p>
+          </div>
+          
+          <div class="footer">
+            <p>This is an automated message from Dreamron DMS.</p>
+            <p>Please do not reply to this email.</p>
+            <p>© ${new Date().getFullYear()} Dreamron DMS. All rights reserved.</p>
+          </div>
         </div>
-        
-        <p>Hello <strong>${employee.name}</strong>,</p>
-        
-        <p>You requested a password reset for your Dreamron DMS account.</p>
-        
-        <p>Click the button below to reset your password:</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" 
-             style="background: linear-gradient(to right, #1E3EA6, #D20073); 
-                    color: white; 
-                    padding: 12px 30px; 
-                    text-decoration: none; 
-                    border-radius: 6px; 
-                    font-weight: bold;
-                    display: inline-block;">
-            Reset Password
-          </a>
-        </div>
-        
-        <p>Or copy and paste this link in your browser:</p>
-        <p style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">
-          ${resetUrl}
-        </p>
-        
-        <p><strong>Important:</strong> This link will expire in 10 minutes.</p>
-        
-        <p>If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
-        
-        <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;" />
-        
-        <div style="text-align: center; color: #999; font-size: 12px;">
-          <p>This is an automated message from Dreamron DMS.</p>
-          <p>Please do not reply to this email.</p>
-        </div>
-      </div>
+      </body>
+      </html>
     `;
 
     try {
-      // Configure email transporter
-      let transporter;
-
+      // 🔧 Environment-based email handling
       if (process.env.NODE_ENV === 'production') {
-        // Production email configuration (using SMTP)
-        transporter = nodemailer.createTransport({
+        // Production email configuration
+        const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
           port: process.env.SMTP_PORT,
           secure: process.env.SMTP_SECURE === 'true',
@@ -294,43 +353,43 @@ exports.forgotPassword = async (req, res) => {
             pass: process.env.SMTP_PASS
           }
         });
-      } else {
-        // Development - log email to console
-        console.log('\n========== PASSWORD RESET EMAIL ==========');
-        console.log('To:', employee.email);
-        console.log('Subject: Password Reset Request - Dreamron DMS');
-        console.log('Reset URL:', resetUrl);
-        console.log('Reset Token:', resetToken);
-        console.log('==========================================\n');
 
-        // For development, you can use Ethereal email (fake SMTP)
-        // or just return success without actually sending
-        return res.status(200).json({
-          success: true,
-          message: 'Reset link generated successfully',
-          // Only include in development for testing
-          ...(process.env.NODE_ENV === 'development' && {
-            resetUrl: resetUrl,
-            resetToken: resetToken
-          })
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Dreamron DMS" <noreply@dreamron.com>',
+          to: employee.email,
+          subject: 'Password Reset Request - Dreamron DMS',
+          html: message
         });
-      }
 
-      // Send email
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"Dreamron DMS" <noreply@dreamron.com>',
-        to: employee.email,
-        subject: 'Password Reset Request - Dreamron DMS',
-        html: message
-      });
+        console.log(`✅ Password reset email sent to: ${employee.email}`);
+
+      } else {
+        // Development mode - log links instead of sending email
+        console.log('\n========== DEVELOPMENT MODE ==========');
+        console.log('📧 Email would be sent to:', employee.email);
+        console.log('📱 Mobile Deep Link:', links.mobileDeepLink);
+        console.log('🌐 Web URL:', links.webUrl);
+        console.log('🔑 Reset Token:', resetToken);
+        console.log('=====================================\n');
+      }
 
       res.status(200).json({
         success: true,
-        message: 'Password reset link sent to your email'
+        message: process.env.NODE_ENV === 'production' 
+          ? 'Password reset link sent to your email'
+          : 'Reset link generated for development',
+        // Return the links in development for testing
+        ...(process.env.NODE_ENV !== 'production' && {
+          debug: {
+            mobileDeepLink: links.mobileDeepLink,
+            webUrl: links.webUrl,
+            token: resetToken
+          }
+        })
       });
 
     } catch (emailError) {
-      console.error('Email sending error:', emailError);
+      console.error('❌ Email sending error:', emailError);
 
       // Clear reset token if email fails
       employee.clearPasswordResetToken();
@@ -343,7 +402,7 @@ exports.forgotPassword = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('❌ Forgot password error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
