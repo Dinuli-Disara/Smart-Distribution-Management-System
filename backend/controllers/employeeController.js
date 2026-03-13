@@ -55,7 +55,7 @@ exports.getEmployee = async (req, res) => {
 // @access  Private (Owner only)
 exports.createEmployee = async (req, res) => {
   try {
-    const { name, email, contact, role, username, password } = req.body;
+    const { name, email, contact, role, username, password, route_id } = req.body;
 
     // Validation
     if (!name || !email || !role || !username || !password) {
@@ -81,7 +81,7 @@ exports.createEmployee = async (req, res) => {
   }
 };
 
-// @desc    Update employee
+// // @desc    Update employee
 // @route   PUT /api/employees/:id
 // @access  Private (Owner only) - BUT employees should update their own profile
 exports.updateEmployee = async (req, res) => {
@@ -100,16 +100,30 @@ exports.updateEmployee = async (req, res) => {
       });
     }
 
-    // Only allow updating certain fields
-    const allowedUpdates = ['name', 'username', 'contact'];
+    // Different allowed updates based on role
+    let allowedUpdates = [];
+    
+    if (req.user.role === 'Owner') {
+      // Owner can update more fields
+      allowedUpdates = ['name', 'username', 'contact', 'email', 'role', 'route_id'];
+    } else {
+      // Regular employees can only update their own basic info
+      allowedUpdates = ['name', 'username', 'contact'];
+    }
+    
     const updates = Object.keys(req.body);
     const isValidOperation = updates.every(update => allowedUpdates.includes(update));
     
     if (!isValidOperation) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid updates! Only name, username, and contact can be updated.'
+        message: `Invalid updates! Allowed fields: ${allowedUpdates.join(', ')}`
       });
+    }
+
+    // If role is being changed to non-sales, ensure route_id is removed
+    if (req.body.role && req.body.role !== 'Sales Representative') {
+      req.body.route_id = null;
     }
 
     const employee = await employeeService.updateEmployee(

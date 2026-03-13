@@ -1,11 +1,13 @@
 // backend/services/employeeService.js
 const Employee = require('../models/Employee');
+const DeliveryRoute = require('../models/DeliveryRoute');
 const { Op } = require('sequelize');
 
 class EmployeeService {
   // Get all employees
   async getAllEmployees(filters = {}) {
     const where = {};
+    const DeliveryRoute = require('../models/DeliveryRoute');
 
     // Filter by role
     if (filters.role) {
@@ -28,8 +30,15 @@ class EmployeeService {
 
     const employees = await Employee.findAll({
       where,
+      include: [
+        {
+          model: DeliveryRoute,
+          as: 'route',
+          attributes: ['route_id', 'route_name', 'area_id']
+        }
+      ],
       order: [['created_at', 'DESC']],
-      attributes: { exclude: ['password'] } // Don't send password
+      attributes: { exclude: ['password'] }
     });
 
     return employees;
@@ -38,6 +47,13 @@ class EmployeeService {
   // Get employee by ID
   async getEmployeeById(id) {
     const employee = await Employee.findByPk(id, {
+      include: [
+        {
+          model: DeliveryRoute,
+          as: 'route',
+          attributes: ['route_id', 'route_name', 'area_id']
+        }
+      ],
       attributes: { exclude: ['password'] }
     });
 
@@ -48,46 +64,7 @@ class EmployeeService {
     return employee;
   }
 
-  // Create new employee
-  async createEmployee(data, createdBy) {
-    // Check if username already exists
-    const existingUsername = await Employee.findOne({
-      where: { username: data.username }
-    });
-
-    if (existingUsername) {
-      throw new Error('Username already exists');
-    }
-
-    // Check if email already exists
-    const existingEmail = await Employee.findOne({
-      where: { email: data.email }
-    });
-
-    if (existingEmail) {
-      throw new Error('Email already exists');
-    }
-
-    // Create employee
-    const employee = await Employee.create({
-      name: data.name,
-      email: data.email,
-      contact: data.contact,
-      role: data.role,
-      username: data.username,
-      password: data.password, // Will be hashed by model hook
-      is_active: true,
-      created_by: createdBy,
-      updated_by: createdBy
-    });
-
-    // Return without password
-    const employeeData = employee.toJSON();
-    return employeeData;
-  }
-
-  // backend/services/employeeService.js - update the updateEmployee method
-
+  // Update employee
   async updateEmployee(id, data, updatedBy) {
     console.log('EmployeeService.updateEmployee called with:', { id, data, updatedBy });
 
@@ -113,26 +90,71 @@ class EmployeeService {
       }
     }
 
-    // Don't check email since it's not being updated
-    // Remove email check as it's not in allowed fields
+    // Check if email is being changed and already exists
+    if (data.email && data.email !== employee.email) {
+      console.log('Checking email uniqueness:', data.email);
+      const existingEmail = await Employee.findOne({
+        where: {
+          email: data.email,
+          employee_id: { [Op.ne]: id }
+        }
+      });
 
-    // Update fields
+      if (existingEmail) {
+        throw new Error('Email already exists');
+      }
+    }
+
+    // If role is being changed to non-sales, remove route_id
+    if (data.role && data.role !== 'Sales Representative') {
+      data.route_id = null;
+    }
+
+    // If route is being assigned to a sales rep, check if it's available
+    if (data.route_id && employee.role === 'Sales Representative') {
+      const existingAssignment = await Employee.findOne({
+        where: {
+          route_id: data.route_id,
+          employee_id: { [Op.ne]: id },
+          role: 'Sales Representative',
+          is_active: true
+        }
+      });
+
+      if (existingAssignment) {
+        throw new Error('This route is already assigned to another sales representative');
+      }
+    }
+
+    // Update fields - INCLUDE ALL FIELDS FROM data
     const updateData = {
-      updated_by: updatedBy
+      updated_by: updatedBy,
+      ...data // This will include all fields from data
     };
 
-    if (data.name) updateData.name = data.name;
-    if (data.contact !== undefined) updateData.contact = data.contact;
-    if (data.username) updateData.username = data.username;
-
-    // Remove email and role from update - they shouldn't be updated here
+    // Remove any fields that shouldn't be updated directly
+    delete updateData.employee_id;
+    delete updateData.created_by;
+    delete updateData.created_at;
+    delete updateData.updated_at;
+    delete updateData.password; // Password should be changed through separate endpoint
+    delete updateData.password_reset_token;
+    delete updateData.password_reset_expires;
 
     console.log('Updating with data:', updateData);
 
     await employee.update(updateData);
 
-    // Fetch fresh data without password
+    // Fetch fresh data with route info
+    const DeliveryRoute = require('../models/DeliveryRoute');
     const updatedEmployee = await Employee.findByPk(id, {
+      include: [
+        {
+          model: DeliveryRoute,
+          as: 'route',
+          attributes: ['route_id', 'route_name', 'area_id']
+        }
+      ],
       attributes: { exclude: ['password'] }
     });
 

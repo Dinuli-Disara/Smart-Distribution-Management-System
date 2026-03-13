@@ -23,6 +23,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const customerAuthRoutes = require('./routes/customerAuthRoutes');
+const deliveryRouteRoutes = require('./routes/deliveryRouteRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -55,6 +56,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/customer-auth', customerAuthRoutes);
+app.use('/api/delivery-routes', deliveryRouteRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

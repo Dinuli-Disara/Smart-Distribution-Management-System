@@ -3,18 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import { Button } from "../../components/ui/button";
 import { Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/form-components";
-import { UserPlus, AlertTriangle, Search, X } from "lucide-react";
+import { UserPlus, AlertTriangle, Search, X, MapPin, Edit2 } from "lucide-react";
 import employeeService, { Employee } from "../../services/employeeService";
+import routeService, { DeliveryRoute } from "../../services/deliveryRouteService";
 
 export default function EmployeesView() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [routes, setRoutes] = useState<DeliveryRoute[]>([]);
+  const [allRoutes, setAllRoutes] = useState<DeliveryRoute[]>([]); // For editing (shows all routes)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Dialog states
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [showEditEmployee, setShowEditEmployee] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeeToUpdate, setEmployeeToUpdate] = useState<{
     id: number;
     name: string;
@@ -28,12 +33,24 @@ export default function EmployeesView() {
     password: '',
     role: 'Sales Representative' as 'Owner' | 'Clerk' | 'Sales Representative',
     email: '',
-    contact: ''
+    contact: '',
+    route_id: ''
   });
 
-  // Load employees on mount
+  // Edit form state
+  const [editEmployee, setEditEmployee] = useState({
+    name: '',
+    email: '',
+    contact: '',
+    role: 'Sales Representative' as 'Owner' | 'Clerk' | 'Sales Representative',
+    route_id: ''
+  });
+
+  // Load employees and routes on mount
   useEffect(() => {
     loadEmployees();
+    loadAllRoutes();
+    loadUnassignedRoutes();
   }, []);
 
   const loadEmployees = async () => {
@@ -50,12 +67,32 @@ export default function EmployeesView() {
     }
   };
 
+  // Load all routes for editing
+  const loadAllRoutes = async () => {
+    try {
+      const data = await routeService.getAllRoutes();
+      setAllRoutes(data);
+    } catch (err: any) {
+      console.error('Error loading all routes:', err);
+    }
+  };
+
+  // Load unassigned routes for dropdown
+  const loadUnassignedRoutes = async () => {
+    try {
+      const data = await routeService.getUnassignedRoutes();
+      setRoutes(data);
+    } catch (err: any) {
+      console.error('Error loading routes:', err);
+    }
+  };
+
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       loadEmployees();
       return;
     }
-    
+
     try {
       setLoading(true);
       setError(null);
@@ -66,6 +103,62 @@ export default function EmployeesView() {
       console.error('Error searching employees:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Open edit dialog
+  const openEditDialog = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setEditEmployee({
+      name: employee.name,
+      email: employee.email,
+      contact: employee.contact || '',
+      role: employee.role,
+      route_id: employee.route_id?.toString() || ''
+    });
+    setShowEditEmployee(true);
+  };
+
+  // Handle edit employee
+  const handleEditEmployee = async () => {
+    if (!selectedEmployee) return;
+
+    try {
+      setError(null);
+
+      // Validate form
+      if (!editEmployee.name || !editEmployee.email) {
+        setError('Name and email are required');
+        return;
+      }
+
+      // Prepare update data
+      const updateData: any = {
+        name: editEmployee.name,
+        email: editEmployee.email,
+        contact: editEmployee.contact || null,
+        role: editEmployee.role
+      };
+
+      // Only include route_id if role is Sales Representative
+      if (editEmployee.role === 'Sales Representative') {
+        updateData.route_id = editEmployee.route_id ? parseInt(editEmployee.route_id) : null;
+      } else {
+        updateData.route_id = null;
+      }
+
+      await employeeService.updateEmployee(selectedEmployee.employee_id, updateData);
+
+      await loadEmployees();
+      await loadUnassignedRoutes(); // Refresh routes list
+
+      setShowEditEmployee(false);
+      setSelectedEmployee(null);
+
+      console.log('Employee updated successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update employee');
+      console.error('Error updating employee:', err);
     }
   };
 
@@ -80,26 +173,22 @@ export default function EmployeesView() {
 
   const handleConfirmStatusChange = async () => {
     if (!employeeToUpdate) return;
-    
+
     try {
       setError(null);
-      
+
       if (employeeToUpdate.currentStatus) {
         await employeeService.deactivateEmployee(employeeToUpdate.id);
       } else {
         await employeeService.activateEmployee(employeeToUpdate.id);
       }
-      
-      // Reload employees to get updated data
+
       await loadEmployees();
-      
-      // Show success message (optional - you can add a toast notification here)
       console.log(`Employee ${employeeToUpdate.currentStatus ? 'deactivated' : 'activated'} successfully`);
     } catch (err: any) {
       setError(err.message || `Failed to ${employeeToUpdate.currentStatus ? 'deactivate' : 'activate'} employee`);
       console.error('Error updating employee status:', err);
     } finally {
-      // Close dialog and reset
       setShowConfirmDialog(false);
       setEmployeeToUpdate(null);
     }
@@ -108,19 +197,26 @@ export default function EmployeesView() {
   const handleAddEmployee = async () => {
     try {
       setError(null);
-      
+
       // Validate form
       if (!newEmployee.name || !newEmployee.email || !newEmployee.username || !newEmployee.password) {
         setError('Please fill in all required fields');
         return;
       }
 
-      await employeeService.createEmployee(newEmployee);
-      
-      // Reload employees
+      // If role is Sales Representative and route is selected, include route_id
+      const employeeData = {
+        ...newEmployee,
+        route_id: newEmployee.role === 'Sales Representative' && newEmployee.route_id
+          ? parseInt(newEmployee.route_id)
+          : undefined
+      };
+
+      await employeeService.createEmployee(employeeData);
+
       await loadEmployees();
-      
-      // Close dialog and reset form
+      await loadUnassignedRoutes(); // Refresh routes list
+
       setShowAddEmployee(false);
       setNewEmployee({
         name: '',
@@ -128,10 +224,10 @@ export default function EmployeesView() {
         password: '',
         role: 'Sales Representative',
         email: '',
-        contact: ''
+        contact: '',
+        route_id: ''
       });
-      
-      // Show success message (optional)
+
       console.log('Employee created successfully');
     } catch (err: any) {
       setError(err.message || 'Failed to create employee');
@@ -146,7 +242,8 @@ export default function EmployeesView() {
       password: '',
       role: 'Sales Representative',
       email: '',
-      contact: ''
+      contact: '',
+      route_id: ''
     });
     setError(null);
   };
@@ -154,6 +251,12 @@ export default function EmployeesView() {
   const handleCloseAddDialog = () => {
     setShowAddEmployee(false);
     resetForm();
+  };
+
+  const handleCloseEditDialog = () => {
+    setShowEditEmployee(false);
+    setSelectedEmployee(null);
+    setError(null);
   };
 
   // Helper function to get role badge color
@@ -197,11 +300,11 @@ export default function EmployeesView() {
               Search
             </Button>
             {searchTerm && (
-              <Button 
+              <Button
                 onClick={() => {
                   setSearchTerm('');
                   loadEmployees();
-                }} 
+                }}
                 variant="ghost"
                 className="px-3"
               >
@@ -231,6 +334,7 @@ export default function EmployeesView() {
                   <TableHead>Role</TableHead>
                   <TableHead>Contact No</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Assigned Route</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -238,7 +342,7 @@ export default function EmployeesView() {
               <TableBody>
                 {employees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No employees found
                     </TableCell>
                   </TableRow>
@@ -255,25 +359,55 @@ export default function EmployeesView() {
                       <TableCell>{employee.contact || 'N/A'}</TableCell>
                       <TableCell>{employee.email}</TableCell>
                       <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          employee.is_active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
+                        {employee.role === 'Sales Representative' ? (
+                          employee.route ? (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-medium text-blue-900">
+                                {employee.route.route_name}
+                                {employee.route.route_code && ` (${employee.route.route_code})`}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500 italic">No route assigned</span>
+                          )
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${employee.is_active
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                          }`}>
                           {employee.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          onClick={() => openConfirmationDialog(employee)}
-                          variant={employee.is_active ? "outline" : "default"}
-                          className={employee.is_active
-                            ? "border-red-500 text-red-600 hover:bg-red-50"
-                            : "bg-green-600 hover:bg-green-700 text-white"
-                          }
-                        >
-                          {employee.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        <div className="flex gap-2">
+                          {employee.role !== 'Owner' && (
+                            <Button
+                              onClick={() => openEditDialog(employee)}
+                              variant="outline"
+                              size="sm"
+                              className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            onClick={() => openConfirmationDialog(employee)}
+                            variant={employee.is_active ? "outline" : "default"}
+                            size="sm"
+                            className={employee.is_active
+                              ? "border-red-500 text-red-600 hover:bg-red-50"
+                              : "bg-green-600 hover:bg-green-700 text-white"
+                            }
+                            disabled={employee.role === 'Owner'}
+                          >
+                            {employee.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -284,7 +418,253 @@ export default function EmployeesView() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
+      {/* Edit Employee Dialog */}
+      <Dialog open={showEditEmployee} onOpenChange={handleCloseEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+          </DialogHeader>
+
+          {/* Error message in dialog */}
+          {error && (
+            <div className="mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input
+                placeholder="Enter employee name"
+                value={editEmployee.name}
+                onChange={(e) => setEditEmployee({ ...editEmployee, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                placeholder="Enter email"
+                value={editEmployee.email}
+                onChange={(e) => setEditEmployee({ ...editEmployee, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Contact</Label>
+              <Input
+                placeholder="Enter contact number"
+                value={editEmployee.contact}
+                onChange={(e) => setEditEmployee({ ...editEmployee, contact: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Role *</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={editEmployee.role}
+                onChange={(e) => {
+                  const role = e.target.value as 'Owner' | 'Clerk' | 'Sales Representative';
+                  setEditEmployee({
+                    ...editEmployee,
+                    role,
+                    route_id: role === 'Sales Representative' ? editEmployee.route_id : ''
+                  });
+                }}
+              >
+                <option value="Sales Representative">Sales Representative</option>
+                <option value="Clerk">Clerk</option>
+              </select>
+            </div>
+
+            {/* Conditional Route Selection - Only show for Sales Representative */}
+            {editEmployee.role === 'Sales Representative' && (
+              <div className="space-y-2">
+                <Label>Assign Route</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={editEmployee.route_id}
+                  onChange={(e) => setEditEmployee({ ...editEmployee, route_id: e.target.value })}
+                >
+                  <option value="">No route (unassign)</option>
+                  {allRoutes.map((route) => {
+                    // Check if route is assigned to someone else (if the data is available)
+                    const isAssignedToOther = route.assigned_to &&
+                      route.assigned_to !== selectedEmployee?.employee_id;
+
+                    return (
+                      <option
+                        key={route.route_id}
+                        value={route.route_id}
+                        disabled={!!isAssignedToOther} // Optionally disable if assigned to others
+                      >
+                        {route.route_name}
+                        {route.route_code && ` (${route.route_code})`}
+                        {route.area && ` - ${route.area}`}
+                        {isAssignedToOther && ` (Assigned to another rep)`}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Select a route to assign. Routes assigned to other reps are shown but disabled.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleEditEmployee}
+                className="flex-1 bg-blue-900 hover:bg-blue-800"
+              >
+                Update Employee
+              </Button>
+              <Button
+                onClick={handleCloseEditDialog}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Employee Dialog */}
+      <Dialog open={showAddEmployee} onOpenChange={handleCloseAddDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Employee</DialogTitle>
+          </DialogHeader>
+
+          {/* Error message in dialog */}
+          {error && (
+            <div className="mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input
+                placeholder="Enter employee name"
+                value={newEmployee.name}
+                onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Username *</Label>
+              <Input
+                placeholder="Enter username"
+                value={newEmployee.username}
+                onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Password *</Label>
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={newEmployee.password}
+                onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
+              />
+              <p className="text-xs text-gray-500">Minimum 6 characters</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                placeholder="Enter email"
+                value={newEmployee.email}
+                onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Contact</Label>
+              <Input
+                placeholder="Enter contact number"
+                value={newEmployee.contact}
+                onChange={(e) => setNewEmployee({ ...newEmployee, contact: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Role *</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newEmployee.role}
+                onChange={(e) => {
+                  const role = e.target.value as 'Owner' | 'Clerk' | 'Sales Representative';
+                  setNewEmployee({
+                    ...newEmployee,
+                    role,
+                    route_id: role === 'Sales Representative' ? newEmployee.route_id : ''
+                  });
+                }}
+              >
+                <option value="Sales Representative">Sales Representative</option>
+                <option value="Clerk">Clerk</option>
+              </select>
+            </div>
+
+            {/* Conditional Route Selection - Only show for Sales Representative */}
+            {newEmployee.role === 'Sales Representative' && (
+              <div className="space-y-2">
+                <Label>Assign Route</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={newEmployee.route_id}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, route_id: e.target.value })}
+                >
+                  <option value="">Select a route (optional)</option>
+                  {routes.map((route) => (
+                    <option key={route.route_id} value={route.route_id}>
+                      {route.route_name}
+                      {route.route_code && ` (${route.route_code})`}
+                      {route.area && ` - ${route.area}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Only unassigned routes are shown. Routes can also be assigned later.
+                </p>
+                {routes.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No unassigned routes available. Create routes first in Route Management.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleAddEmployee}
+                className="flex-1 bg-blue-900 hover:bg-blue-800"
+              >
+                Create Employee
+              </Button>
+              <Button
+                onClick={handleCloseAddDialog}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog (Keep existing) */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -321,8 +701,8 @@ export default function EmployeesView() {
                 <Button
                   onClick={handleConfirmStatusChange}
                   className={`flex-1 ${employeeToUpdate.currentStatus
-                      ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-green-600 hover:bg-green-700'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-green-600 hover:bg-green-700'
                     }`}
                 >
                   {employeeToUpdate.currentStatus ? 'Deactivate' : 'Activate'}
@@ -330,104 +710,6 @@ export default function EmployeesView() {
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Employee Dialog */}
-      <Dialog open={showAddEmployee} onOpenChange={handleCloseAddDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Employee</DialogTitle>
-          </DialogHeader>
-          
-          {/* Error message in dialog */}
-          {error && (
-            <div className="mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-          
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Full Name *</Label>
-              <Input
-                placeholder="Enter employee name"
-                value={newEmployee.name}
-                onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Username *</Label>
-              <Input
-                placeholder="Enter username"
-                value={newEmployee.username}
-                onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Password *</Label>
-              <Input
-                type="password"
-                placeholder="Enter password"
-                value={newEmployee.password}
-                onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
-              />
-              <p className="text-xs text-gray-500">Minimum 6 characters</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input
-                type="email"
-                placeholder="Enter email"
-                value={newEmployee.email}
-                onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Contact</Label>
-              <Input
-                placeholder="Enter contact number"
-                value={newEmployee.contact}
-                onChange={(e) => setNewEmployee({ ...newEmployee, contact: e.target.value })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Role *</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={newEmployee.role}
-                onChange={(e) => setNewEmployee({ 
-                  ...newEmployee, 
-                  role: e.target.value as 'Owner' | 'Clerk' | 'Sales Representative' 
-                })}
-              >
-                <option value="Sales Representative">Sales Representative</option>
-                <option value="Clerk">Clerk</option>
-                <option value="Owner">Owner</option>
-              </select>
-            </div>
-            
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleAddEmployee}
-                className="flex-1 bg-blue-900 hover:bg-blue-800"
-              >
-                Create Employee
-              </Button>
-              <Button
-                onClick={handleCloseAddDialog}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </>

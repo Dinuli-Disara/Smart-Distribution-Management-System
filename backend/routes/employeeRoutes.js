@@ -1,7 +1,15 @@
-// backend/routes/employeeRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+
+// DEBUG: Check what we're getting from auth middleware
+console.log('=== EMPLOYEE ROUTES DEBUG ===');
+console.log('protect:', protect);
+console.log('typeof protect:', typeof protect);
+console.log('authorize:', authorize);
+console.log('typeof authorize:', typeof authorize);
+console.log('============================');
+
 const {
   getAllEmployees,
   getEmployee,
@@ -13,7 +21,7 @@ const {
 } = require('../controllers/employeeController');
 
 // Protect all routes
-router.use(protect);
+router.use(protect);  // This is line 16
 
 // Stats route (must be before /:id route)
 router.get('/stats', authorize('Owner'), getEmployeeStats);
