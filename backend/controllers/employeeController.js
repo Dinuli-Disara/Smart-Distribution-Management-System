@@ -83,9 +83,35 @@ exports.createEmployee = async (req, res) => {
 
 // @desc    Update employee
 // @route   PUT /api/employees/:id
-// @access  Private (Owner only)
+// @access  Private (Owner only) - BUT employees should update their own profile
 exports.updateEmployee = async (req, res) => {
   try {
+    console.log('Update employee request:');
+    console.log('Params ID:', req.params.id);
+    console.log('User from auth:', req.user);
+    console.log('Request body:', req.body);
+    
+    // Allow users to update their own profile even if not Owner
+    // Check if the user is trying to update their own profile
+    if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'Owner') {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update your own profile'
+      });
+    }
+
+    // Only allow updating certain fields
+    const allowedUpdates = ['name', 'username', 'contact'];
+    const updates = Object.keys(req.body);
+    const isValidOperation = updates.every(update => allowedUpdates.includes(update));
+    
+    if (!isValidOperation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid updates! Only name, username, and contact can be updated.'
+      });
+    }
+
     const employee = await employeeService.updateEmployee(
       req.params.id,
       req.body,

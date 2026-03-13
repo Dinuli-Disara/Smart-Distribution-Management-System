@@ -6,17 +6,17 @@ class EmployeeService {
   // Get all employees
   async getAllEmployees(filters = {}) {
     const where = {};
-    
+
     // Filter by role
     if (filters.role) {
       where.role = filters.role;
     }
-    
+
     // Filter by active status
     if (filters.is_active !== undefined) {
       where.is_active = filters.is_active;
     }
-    
+
     // Search by name or email
     if (filters.search) {
       where[Op.or] = [
@@ -86,9 +86,13 @@ class EmployeeService {
     return employeeData;
   }
 
-  // Update employee
+  // backend/services/employeeService.js - update the updateEmployee method
+
   async updateEmployee(id, data, updatedBy) {
+    console.log('EmployeeService.updateEmployee called with:', { id, data, updatedBy });
+
     const employee = await Employee.findByPk(id);
+    console.log('Found employee:', employee ? employee.toJSON() : null);
 
     if (!employee) {
       throw new Error('Employee not found');
@@ -96,8 +100,9 @@ class EmployeeService {
 
     // Check if username is being changed and already exists
     if (data.username && data.username !== employee.username) {
+      console.log('Checking username uniqueness:', data.username);
       const existingUsername = await Employee.findOne({
-        where: { 
+        where: {
           username: data.username,
           employee_id: { [Op.ne]: id }
         }
@@ -108,19 +113,8 @@ class EmployeeService {
       }
     }
 
-    // Check if email is being changed and already exists
-    if (data.email && data.email !== employee.email) {
-      const existingEmail = await Employee.findOne({
-        where: { 
-          email: data.email,
-          employee_id: { [Op.ne]: id }
-        }
-      });
-
-      if (existingEmail) {
-        throw new Error('Email already exists');
-      }
-    }
+    // Don't check email since it's not being updated
+    // Remove email check as it's not in allowed fields
 
     // Update fields
     const updateData = {
@@ -128,15 +122,22 @@ class EmployeeService {
     };
 
     if (data.name) updateData.name = data.name;
-    if (data.email) updateData.email = data.email;
-    if (data.contact) updateData.contact = data.contact;
-    if (data.role) updateData.role = data.role;
+    if (data.contact !== undefined) updateData.contact = data.contact;
     if (data.username) updateData.username = data.username;
-    if (data.password) updateData.password = data.password; // Will be hashed
+
+    // Remove email and role from update - they shouldn't be updated here
+
+    console.log('Updating with data:', updateData);
 
     await employee.update(updateData);
 
-    return employee.toJSON();
+    // Fetch fresh data without password
+    const updatedEmployee = await Employee.findByPk(id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    console.log('Updated employee:', updatedEmployee.toJSON());
+    return updatedEmployee.toJSON();
   }
 
   // Soft delete (deactivate) employee
@@ -176,7 +177,7 @@ class EmployeeService {
     const total = await Employee.count();
     const active = await Employee.count({ where: { is_active: true } });
     const inactive = await Employee.count({ where: { is_active: false } });
-    
+
     const byRole = await Employee.findAll({
       attributes: [
         'role',

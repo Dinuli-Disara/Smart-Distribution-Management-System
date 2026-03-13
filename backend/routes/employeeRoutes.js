@@ -25,7 +25,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getEmployee)
-  .put(authorize('Owner'), updateEmployee);
+  .put(updateEmployee);
 
 // Activate/Deactivate
 router.put('/:id/deactivate', authorize('Owner'), deactivateEmployee);

@@ -1,6 +1,7 @@
 // frontend-web/src/pages/owner/DashboardView.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { KPICard } from "../../components/common/KPICard";
+import { DeliveryScheduleCard } from "../../components/common/DeliveryScheduleCard";
 import { DollarSign, TrendingUp, Truck } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -30,31 +31,40 @@ const productPerformance = [
   { product: 'Black Henna', units: 650 },
 ];
 
+// Delivery schedule data
+const todaysDeliveries = [
+  { area: "Kiribathgoda", route: "Dalugama" },
+  { area: "Battaramulla", route: "Koswatta" },
+  { area: "Homagama", route: "Nugegoda" },
+];
+
 export default function DashboardView() {
   return (
     <>
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <KPICard
-          title="This Month Sales"
-          value="LKR 1,675,000"
-          icon={DollarSign}
-          trend={{ value: "12.5%", isPositive: true }}
-          iconColor="bg-green-100 text-green-600"
-        />
-        <KPICard
-          title="Monthly Revenue"
-          value="LKR 1,675,000"
-          icon={TrendingUp}
-          trend={{ value: "8.2%", isPositive: true }}
-          iconColor="bg-blue-100 text-blue-600"
-        />
-        <KPICard
-          title="Active Van Routes"
-          value="12"
-          icon={Truck}
-          iconColor="bg-purple-100 text-purple-600"
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="space-y-6">
+          <KPICard
+            title="This Month Sales"
+            value="LKR 1,675,000"
+            icon={DollarSign}
+            trend={{ value: "12.5%", isPositive: true }}
+            iconColor="bg-green-100 text-green-600"
+          />
+          <KPICard
+            title="Monthly Revenue"
+            value="LKR 1,675,000"
+            icon={TrendingUp}
+            trend={{ value: "8.2%", isPositive: true }}
+            iconColor="bg-blue-100 text-blue-600"
+          />
+        </div>
+        <div className="lg:col-span-2">
+          <DeliveryScheduleCard
+            title="Today's Delivery Schedule"
+            deliveries={todaysDeliveries}
+          />
+        </div>
       </div>
 
       {/* Charts Section */}

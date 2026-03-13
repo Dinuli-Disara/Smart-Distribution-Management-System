@@ -9,6 +9,7 @@ interface User {
   email: string;
   role: string;
   username: string;
+  contact?: string; // Add contact field
   token?: string;
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; data?: User; message?: string }>;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void; // Add this
   isAuthenticated: boolean;
   role: string | null;
 }
@@ -61,11 +63,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
   };
 
+  // Add updateUser function
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...userData };
+      setUser(updatedUser);
+      
+      // Update localStorage
+      const storedUser = authService.getCurrentUser();
+      if (storedUser) {
+        const updatedStoredUser = { ...storedUser, ...userData };
+        localStorage.setItem('user', JSON.stringify(updatedStoredUser));
+      }
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
     login,
     logout,
+    updateUser, // Add this to the value object
     isAuthenticated: !!user,
     role: user?.role || null,
   };

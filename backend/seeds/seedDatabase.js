@@ -9,11 +9,36 @@ const hashPassword = async (password) => {
   return await bcrypt.hash(password, salt);
 };
 
+// Clear existing data first (optional, use if starting fresh)
+const clearDatabase = async () => {
+  // Disable foreign key checks
+  await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+  
+  // Truncate tables in reverse order of dependencies
+  const tables = [
+    'Order_Product', 'Order', 'Stock_Movement', 'Stock_Location',
+    'Customer', 'Delivery_Route', 'Delivery_Area', 'Product',
+    'Employee', 'Manufacturer', 'Loyalty_Level'
+  ];
+  
+  for (const table of tables) {
+    try {
+      await sequelize.query(`TRUNCATE TABLE ${table}`);
+      console.log(`✅ Cleared ${table}`);
+    } catch (error) {
+      console.log(`⚠️  Could not clear ${table}: ${error.message}`);
+    }
+  }
+  
+  // Re-enable foreign key checks
+  await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+};
+
 // Seed function
 const seedDatabase = async () => {
   try {
     console.log('🌱 Starting database seeding...');
-    
+
     // Connect to database
     await sequelize.authenticate();
     console.log('✅ Database connected');
@@ -21,7 +46,7 @@ const seedDatabase = async () => {
     // 1. SEED ADMIN USER
     console.log('\n📌 Seeding Admin User...');
     const hashedPassword = await hashPassword('admin123');
-    
+
     await sequelize.query(`
       INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_by, updated_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -123,7 +148,7 @@ const seedDatabase = async () => {
 
     // 6. SEED STOCK LOCATIONS
     console.log('\n📌 Seeding Stock Locations...');
-    
+
     // Main Store
     await sequelize.query(`
       INSERT INTO Stock_Location (location_type, van_id, location_name)
@@ -136,7 +161,7 @@ const seedDatabase = async () => {
 
     // 7. SEED SAMPLE EMPLOYEES
     console.log('\n📌 Seeding Sample Employees...');
-    
+
     // Clerk
     const clerkPassword = await hashPassword('clerk123');
     await sequelize.query(`
@@ -207,13 +232,14 @@ const seedDatabase = async () => {
     // 9. SEED SAMPLE CUSTOMERS
     console.log('\n📌 Seeding Sample Customers...');
     const [routes] = await sequelize.query(`SELECT route_id FROM Delivery_Route LIMIT 3`);
-    
+
     const customerPassword = await hashPassword('customer123');
-    
+
+    // Corrected: loyalty_points should be a number (0), loyalty_level_id should be 1 (Blue level)
     const customers = [
-      ['Saman Shop', '0771111111', 'saman@shop.lk', 'No 10, Main St, Battaramulla', routes[0].route_id, 'saman'],
-      ['Nadeeka Stores', '0772222222', 'nadeeka@store.lk', 'No 25, High St, Nugegoda', routes[1].route_id, 'nadeeka'],
-      ['Lucky Mart', '0773333333', 'lucky@mart.lk', 'No 15, Station Rd, Kiribathgoda', routes[2].route_id, 'lucky']
+      ['Saman Shop', '0771111111', 'saman@shop.lk', 'No 10, Main St, Battaramulla', routes[0].route_id, 0, 1, 'saman', customerPassword],
+      ['Nadeeka Stores', '0772222222', 'nadeeka@store.lk', 'No 25, High St, Nugegoda', routes[1].route_id, 0, 1, 'nadeeka', customerPassword],
+      ['Lucky Mart', '0773333333', 'lucky@mart.lk', 'No 15, Station Rd, Kiribathgoda', routes[2].route_id, 0, 1, 'lucky', customerPassword]
     ];
 
     for (const customer of customers) {
@@ -222,9 +248,10 @@ const seedDatabase = async () => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE username = username
       `, {
-        replacements: [...customer, 0, 1, customerPassword]
+        replacements: customer
       });
     }
+
     console.log('✅ Sample customers created');
     console.log('   Username: saman, nadeeka, lucky');
     console.log('   Password: customer123 (for all)');
