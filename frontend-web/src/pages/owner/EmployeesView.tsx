@@ -229,23 +229,6 @@ export default function EmployeesView() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Username</Label>
-              <Input
-                placeholder="Enter username"
-                value={newEmployee.username}
-                onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input
-                type="password"
-                placeholder="Enter password"
-                value={newEmployee.password}
-                onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Role</Label>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"

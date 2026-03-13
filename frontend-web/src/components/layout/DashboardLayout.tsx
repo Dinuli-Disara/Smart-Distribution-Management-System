@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Header from "./Header";
+import Profile from "./Profile";
 import Navigation from "./Navigation";
 import { NavItem, ViewConfig } from "../../types/dashboard";
 
@@ -16,6 +17,7 @@ export default function DashboardLayout({ navItems, views, defaultView }: Dashbo
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState(defaultView);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -26,7 +28,9 @@ export default function DashboardLayout({ navItems, views, defaultView }: Dashbo
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLogout={handleLogout} />
+      <Header user={user} 
+        onOpenProfile={() => setIsProfileOpen(true)}
+      />
       <Navigation 
         activeView={activeView} 
         onViewChange={setActiveView}
@@ -36,6 +40,13 @@ export default function DashboardLayout({ navItems, views, defaultView }: Dashbo
       <main className="p-6 max-w-[1400px] mx-auto">
         <ViewComponent />
       </main>
+
+      <Profile 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }

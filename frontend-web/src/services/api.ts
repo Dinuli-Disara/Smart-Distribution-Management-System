@@ -18,6 +18,7 @@ api.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('API Request:', config.method?.toUpperCase(), config.url, config.data); // Debug log
     return config;
   },
   (error: AxiosError) => {
@@ -28,17 +29,20 @@ api.interceptors.request.use(
 // Response interceptor - Handle errors globally
 api.interceptors.response.use(
   (response: AxiosResponse) => {
-    return response.data;
+    console.log('API Response:', response.status, response.data); // Debug log
+    // Return the full response data structure
+    return response;
   },
   (error: AxiosError) => {
+    console.error('API Error:', error.response?.status, error.response?.data);
+    
     // Handle different error cases
     if (error.response) {
       // Server responded with error
-      const { status, data } = error.response;
+      const { status } = error.response;
       
       if (status === 401) {
         // Unauthorized - only redirect if already authenticated
-        // Don't redirect on login page (401 on /auth/login is expected for invalid credentials)
         const token = localStorage.getItem('token');
         if (token) {
           // Token exists but is invalid - clear it and redirect to login
@@ -46,21 +50,27 @@ api.interceptors.response.use(
           localStorage.removeItem('user');
           window.location.href = '/login';
         }
-        // If no token, let the response handler deal with it (e.g., Login component)
       }
       
-      return Promise.reject(data);
+      // Return the error response with its data
+      return Promise.reject(error.response);
     } else if (error.request) {
       // Request made but no response
       return Promise.reject({
-        success: false,
-        message: 'No response from server. Please check your connection.',
+        status: 0,
+        data: {
+          success: false,
+          message: 'No response from server. Please check your connection.',
+        },
       });
     } else {
       // Something else happened
       return Promise.reject({
-        success: false,
-        message: error.message || 'An error occurred',
+        status: 0,
+        data: {
+          success: false,
+          message: error.message || 'An error occurred',
+        },
       });
     }
   }

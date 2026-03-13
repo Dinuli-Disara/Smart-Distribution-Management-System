@@ -1,6 +1,6 @@
 // frontend-web/src/pages/clerk/Dashboard.tsx
 import DashboardLayout from "../../components/layout/DashboardLayout";
-import { BarChart3, Package, DollarSign, FileText, Bell } from "lucide-react";
+import { BarChart3, Package, DollarSign, FileText, Truck } from "lucide-react";
 import ClerkDashboardView from "./DashboardView";
 import InventoryView from "./InventoryView";
 import PaymentsView from "./PaymentsView";
@@ -11,7 +11,8 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'inventory', label: 'Inventory', icon: Package },
   { id: 'payments', label: 'Payments', icon: DollarSign },
-  { id: 'invoices', label: 'Invoices', icon: FileText },
+  //{ id: 'invoices', label: 'Invoices', icon: FileText },
+  { id: 'routes', label: 'Routes', icon: Truck },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
@@ -20,6 +21,7 @@ const views = {
   inventory: InventoryView,
   payments: PaymentsView,
   invoices: InvoicesView,
+  routes: () => <RoutesView onNavigate={() => {}} />,
   reports: () => <ReportsView onNavigate={() => {}} />,
 };
 
