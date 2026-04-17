@@ -1,6 +1,6 @@
 // frontend-web/src/pages/owner/Dashboard.tsx
 import DashboardLayout from "../../components/layout/DashboardLayout";
-import { BarChart3, Users, Package, Truck, FileText } from "lucide-react";
+import { BarChart3, Users, Package, Truck, FileText, CheckCircle } from "lucide-react";
 import DashboardView from "./DashboardView";
 import EmployeesView from "./EmployeesView";
 import InventoryView from "./InventoryView";

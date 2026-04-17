@@ -80,12 +80,12 @@ const Employee = sequelize.define('Employee', {
       }
     }
   },
-  route_id: {
+  area_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'DeliveryRoute',
-      key: 'route_id'
+      model: 'delivery_area',
+      key: 'area_id'
     }
   },
   is_active: {
@@ -197,21 +197,5 @@ Employee.prototype.toJSON = function () {
   delete values.password;
   return values;
 };
-
-// At the bottom of your Employee.js file or in a separate index.js file
-const DeliveryRoute = require('./DeliveryRoute');
-
-// Define associations
-Employee.belongsTo(DeliveryRoute, {
-  foreignKey: 'route_id',
-  as: 'route',
-  targetKey: 'route_id'
-});
-
-DeliveryRoute.hasMany(Employee, {
-  foreignKey: 'route_id',
-  as: 'employees',
-  sourceKey: 'route_id'
-});
 
 module.exports = Employee; 

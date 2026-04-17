@@ -32,9 +32,9 @@ class EmployeeService {
       where,
       include: [
         {
-          model: DeliveryRoute,
-          as: 'route',
-          attributes: ['route_id', 'route_name', 'area_id']
+          model: require('../models/DeliveryArea'),
+          as: 'area',
+          attributes: ['area_id', 'area_name']
         }
       ],
       order: [['created_at', 'DESC']],
@@ -49,9 +49,9 @@ class EmployeeService {
     const employee = await Employee.findByPk(id, {
       include: [
         {
-          model: DeliveryRoute,
-          as: 'route',
-          attributes: ['route_id', 'route_name', 'area_id']
+          model: DeliveryArea,
+          as: 'area',
+          attributes: ['area_id', 'area_name']
         }
       ],
       attributes: { exclude: ['password'] }
@@ -105,16 +105,16 @@ class EmployeeService {
       }
     }
 
-    // If role is being changed to non-sales, remove route_id
+    // If role is being changed to non-sales, remove area_id
     if (data.role && data.role !== 'Sales Representative') {
-      data.route_id = null;
+      data.area_id = null;
     }
 
-    // If route is being assigned to a sales rep, check if it's available
-    if (data.route_id && employee.role === 'Sales Representative') {
+    // If area is being assigned to a sales rep, check if it's available
+    if (data.area_id && employee.role === 'Sales Representative') {
       const existingAssignment = await Employee.findOne({
         where: {
-          route_id: data.route_id,
+          area_id: data.area_id,
           employee_id: { [Op.ne]: id },
           role: 'Sales Representative',
           is_active: true
@@ -122,7 +122,7 @@ class EmployeeService {
       });
 
       if (existingAssignment) {
-        throw new Error('This route is already assigned to another sales representative');
+        throw new Error('This area is already assigned to another sales representative');
       }
     }
 

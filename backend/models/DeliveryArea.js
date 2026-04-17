@@ -1,34 +1,31 @@
-// backend/models/DeliveryRoute.js
+// backend/models/DeliveryArea.js
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const DeliveryRoute = sequelize.define('DeliveryRoute', {
-  route_id: {
+const DeliveryArea = sequelize.define('DeliveryArea', {
+  area_id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
-  area_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'delivery_area',
-      key: 'area_id'
-    }
-  },
-  route_name: {
+  area_name: {
     type: DataTypes.STRING(100),
-    allowNull: false
+    allowNull: false,
+    unique: true
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   }
 }, {
-  tableName: 'delivery_route',
+  tableName: 'delivery_area',
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at'
 });
 
-module.exports = DeliveryRoute;
+module.exports = DeliveryArea;

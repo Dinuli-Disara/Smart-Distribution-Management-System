@@ -92,6 +92,7 @@ exports.getVanInventory = async (req, res) => {
         v.van_id,
         v.vehicle_number,
         e.name as assigned_employee,
+        sl.location_name,
         p.product_id,
         p.product_name,
         p.product_code,
@@ -116,6 +117,7 @@ exports.getVanInventory = async (req, res) => {
           van_id: item.van_id,
           vehicle_number: item.vehicle_number,
           assigned_employee: item.assigned_employee,
+          location_name: item.location_name,
           products: []
         };
       }

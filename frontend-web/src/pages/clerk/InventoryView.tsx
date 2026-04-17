@@ -6,10 +6,13 @@ import productService from "../../services/productService";
 import inventoryService from "../../services/inventoryService";
 import stockTransferService from "../../services/stockTransferService";
 import productApprovalService from "../../services/productApprovalService";
+import stockReceiveApprovalService from "../../services/stockReceiveApprovalService";
 import { Button } from "../../components/ui/button";
 import { Input, Label } from "../../components/ui/form-components";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/ui/dialog";
-import { Plus, Package, Truck, Box, AlertTriangle } from "lucide-react";
+import { Textarea } from "../../components/ui/textarea";
+import { Plus, Package, Truck, Box, AlertTriangle, Trash2, Save, X } from "lucide-react";
+import api from "../../services/api";
 
 interface Product {
   product_id: number;
@@ -29,6 +32,7 @@ interface Van {
   van_id: number;
   vehicle_number: string;
   assigned_employee: string;
+  location_name?: string;
 }
 
 interface AvailableProduct {
@@ -36,42 +40,82 @@ interface AvailableProduct {
   product_name: string;
   product_code: string;
   unit_price: number;
-  available_quantity: number;
+  available_quantity?: number;
+  total_stock?: number;
   nearest_expiry: string;
 }
 
-interface NewProductData {
-  product_name: string;
-  product_code: string;
-  product_description: string;
+interface ReceiveItem {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  product_code?: string;
+  quantity: string;
+  batch_number: string;
+  expiry_date: string;
   unit_price: string;
-  low_stock_threshold: string;
+}
+
+interface TransferItem {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  product_code?: string;
+  quantity: string;
+  batch_number: string;
+  available_quantity?: number;
+}
+
+interface Manufacturer {
   manufacturer_id: number;
+  name: string;
 }
 
 export default function InventoryView() {
   const [inventory, setInventory] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // New state for dropdown options
   const [productOptions, setProductOptions] = useState<AvailableProduct[]>([]);
   const [vanOptions, setVanOptions] = useState<Van[]>([]);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
   // State for dialogs
   const [showReceiveStock, setShowReceiveStock] = useState(false);
   const [showTransferToVan, setShowTransferToVan] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
-
-  // State for Receive Stock form
-  const [receiveStockData, setReceiveStockData] = useState({
+   
+  // State  for multi-item receive
+  const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
+  const [receiveRequestData, setReceiveRequestData] = useState({
+    manufacturer_id: "",
+    purchase_order_reference: "",
+    notes: ""
+  });
+  const [selectedProduct, setSelectedProduct] = useState<AvailableProduct | null>(null);
+  
+  // State for multi-item transfer
+  const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
+  const [transferRequestData, setTransferRequestData] = useState({
+    to_van_id: "",
+    notes: ""
+  });
+  const [selectedTransferProduct, setSelectedTransferProduct] = useState<AvailableProduct | null>(null);
+  
+  // Single item form state (for adding to list)
+  const [currentItem, setCurrentItem] = useState({
     product_id: "",
     quantity: "",
     expiryDate: "",
-    batch_number: "",  // Changed from batchNo to match API
-    unit_price: "",
-    purchase_id: ""    // Optional, for linking to purchase order
+    batch_number: "",
+    unit_price: ""
+  });
+
+  // Single item form state for transfers
+  const [currentTransferItem, setCurrentTransferItem] = useState({
+    product_id: "",
+    quantity: "",
+    batch_number: ""
   });
 
   // State for Transfer to Van form
@@ -79,22 +123,23 @@ export default function InventoryView() {
     product_id: "",
     quantity: "",
     batchNo: "",
-    to_van_id: ""      // Changed from 'van' to match API
+    to_van_id: ""
   });
 
   // State for Add New Product form
   const [newProductData, setNewProductData] = useState({
-    product_name: "",      // Changed from productName
-    product_code: "",      // Added
-    product_description: "",   // Added
+    product_name: "",
+    product_code: "",
+    product_description: "",
     unit_price: "",
-    low_stock_threshold: "10", // Added default
-    manufacturer_id: 1
+    low_stock_threshold: "10",
+    manufacturer_id: "1"
   });
 
   useEffect(() => {
     fetchInventory();
     fetchOptions();
+    fetchManufacturers();
   }, []);
 
   const fetchInventory = async () => {
@@ -103,7 +148,6 @@ export default function InventoryView() {
       const response = await productService.getAllProducts();
 
       if (response.data.success) {
-        // Transform the data to match your component's expected format
         const transformedData = transformInventoryData(response.data.data);
         setInventory(transformedData);
       } else {
@@ -121,20 +165,19 @@ export default function InventoryView() {
     try {
       setLoadingOptions(true);
 
-      // Fetch available products for dropdowns
-      const productsResponse = await stockTransferService.getAvailableStock();
+      // Fetch all active products for receive stock dropdown
+      const productsResponse = await productService.getAllProducts();
       if (productsResponse.data.success) {
         setProductOptions(productsResponse.data.data);
       }
 
-      // Fetch vans - you might need to add this to your vanService
-      // For now, you can get vans from inventory service
       const vansResponse = await inventoryService.getVanInventory();
       if (vansResponse.data.success) {
         const vans = vansResponse.data.data.map((van: any) => ({
           van_id: van.van_id,
           vehicle_number: van.vehicle_number,
-          assigned_employee: van.assigned_employee
+          assigned_employee: van.assigned_employee,
+          location_name: van.location_name
         }));
         setVanOptions(vans);
       }
@@ -145,7 +188,17 @@ export default function InventoryView() {
     }
   };
 
-  // Transform the data from API to match your component's format
+  const fetchManufacturers = async () => {
+    try {
+      const response = await api.get('/manufacturers');
+      if (response.data.success) {
+        setManufacturers(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching manufacturers:', err);
+    }
+  };
+
   const transformInventoryData = (apiData: any[]): Product[] => {
     return apiData.map(item => ({
       product_id: item.product_id,
@@ -153,7 +206,6 @@ export default function InventoryView() {
       product_code: item.product_code || '-',
       unit_price: item.unit_price,
       store_stock: item.store_stock || 0,
-      // You'll need to populate these from van stock data
       kiribathgoda_van_stock: 0,
       battaramulla_van_stock: 0,
       homagama_van_stock: 0,
@@ -163,50 +215,164 @@ export default function InventoryView() {
     }));
   };
 
-  // Handle Receive Stock form submission
-  const handleReceiveStock = async () => {
+  const handleAddReceiveItem = () => {
+    if (!selectedProduct || !currentItem.quantity || !currentItem.batch_number || 
+        !currentItem.expiryDate || !currentItem.unit_price) {
+      alert('Please fill in all item fields');
+      return;
+    }
+
+    const newItem: ReceiveItem = {
+      id: Date.now().toString(),
+      product_id: currentItem.product_id,
+      product_name: selectedProduct.product_name,
+      product_code: selectedProduct.product_code,
+      quantity: currentItem.quantity,
+      batch_number: currentItem.batch_number,
+      expiry_date: currentItem.expiryDate,
+      unit_price: currentItem.unit_price
+    };
+
+    setReceiveItems([...receiveItems, newItem]);
+    
+    // Reset current item form
+    setCurrentItem({
+      product_id: "",
+      quantity: "",
+      expiryDate: "",
+      batch_number: "",
+      unit_price: ""
+    });
+    setSelectedProduct(null);
+  };
+
+  const handleRemoveReceiveItem = (id: string) => {
+    setReceiveItems(receiveItems.filter(item => item.id !== id));
+  };
+
+  const handleAddTransferItem = () => {
+    if (!selectedTransferProduct || !currentTransferItem.quantity || !currentTransferItem.batch_number) {
+      alert('Please fill in all item fields');
+      return;
+    }
+
+    const quantity = parseInt(currentTransferItem.quantity);
+    const available = selectedTransferProduct.available_quantity || 0;
+    
+    if (quantity > available) {
+      alert(`Cannot transfer ${quantity} units. Only ${available} units available in store.`);
+      return;
+    }
+
+    const newItem: TransferItem = {
+      id: Date.now().toString(),
+      product_id: currentTransferItem.product_id,
+      product_name: selectedTransferProduct.product_name,
+      product_code: selectedTransferProduct.product_code,
+      quantity: currentTransferItem.quantity,
+      batch_number: currentTransferItem.batch_number,
+      available_quantity: available
+    };
+
+    setTransferItems([...transferItems, newItem]);
+    
+    // Reset current transfer item form
+    setCurrentTransferItem({
+      product_id: "",
+      quantity: "",
+      batch_number: ""
+    });
+    setSelectedTransferProduct(null);
+  };
+
+  const handleRemoveTransferItem = (id: string) => {
+    setTransferItems(transferItems.filter(item => item.id !== id));
+  };
+
+  const handleSubmitReceiveRequest = async () => {
     try {
+      if (receiveItems.length === 0) {
+        alert('Please add at least one item to receive');
+        return;
+      }
+
       const payload = {
-        items: [{
-          product_id: parseInt(receiveStockData.product_id),
-          quantity: parseInt(receiveStockData.quantity),
-          batch_number: receiveStockData.batch_number,
-          expiry_date: receiveStockData.expiryDate,
-          unit_price: parseFloat(receiveStockData.unit_price)
-        }]
-        // Add purchase_id if you have it
+        manufacturer_id: receiveRequestData.manufacturer_id ? parseInt(receiveRequestData.manufacturer_id) : null,
+        purchase_order_reference: receiveRequestData.purchase_order_reference || null,
+        notes: receiveRequestData.notes || null,
+        items: receiveItems.map(item => ({
+          product_id: parseInt(item.product_id),
+          quantity: parseInt(item.quantity),
+          batch_number: item.batch_number,
+          expiry_date: item.expiry_date,
+          unit_price: parseFloat(item.unit_price)
+        }))
       };
 
-      if (receiveStockData.purchase_id) {
-        // @ts-ignore
-        payload.purchase_id = parseInt(receiveStockData.purchase_id);
-      }
-
-      const response = await inventoryService.receiveStock(payload);
+      const response = await stockReceiveApprovalService.createReceiveRequest(payload);
 
       if (response.data.success) {
-        // Reset form
-        setReceiveStockData({
-          product_id: "",
-          quantity: "",
-          expiryDate: "",
-          batch_number: "",
-          unit_price: "",
-          purchase_id: ""
+        alert('Stock receive request submitted successfully! Waiting for admin approval.');
+        
+        // Reset all forms
+        setReceiveItems([]);
+        setReceiveRequestData({
+          manufacturer_id: "",
+          purchase_order_reference: "",
+          notes: ""
         });
-
-        // Close dialog and refresh inventory
         setShowReceiveStock(false);
-        fetchInventory();
-        fetchOptions(); // Refresh available products
       }
     } catch (err: any) {
-      console.error('Error receiving stock:', err);
-      alert(err.response?.data?.message || 'Failed to receive stock');
+      console.error('Error submitting receive request:', err);
+      alert(err.response?.data?.message || 'Failed to submit receive request');
     }
   };
 
-  // Handle Transfer to Van form submission
+  const handleSubmitTransferRequest = async () => {
+    try {
+      if (transferItems.length === 0) {
+        alert('Please add at least one item to transfer');
+        return;
+      }
+
+      if (!transferRequestData.to_van_id) {
+        alert('Please select a van to transfer to');
+        return;
+      }
+
+      const payload = {
+        to_van_id: parseInt(transferRequestData.to_van_id),
+        notes: transferRequestData.notes || null,
+        items: transferItems.map(item => ({
+          product_id: parseInt(item.product_id),
+          quantity: parseInt(item.quantity),
+          batch_number: item.batch_number
+        }))
+      };
+
+      const response = await stockTransferService.createTransfer(payload);
+
+      if (response.data.success) {
+        alert('Stock transfer request submitted successfully! Waiting for admin approval.');
+        
+        // Reset all forms
+        setTransferItems([]);
+        setTransferRequestData({
+          to_van_id: "",
+          notes: ""
+        });
+        setShowTransferToVan(false);
+        
+        // Refresh inventory
+        fetchInventory();
+      }
+    } catch (err: any) {
+      console.error('Error submitting transfer request:', err);
+      alert(err.response?.data?.message || 'Failed to submit transfer request');
+    }
+  };
+
   const handleTransferToVan = async () => {
     try {
       const payload = {
@@ -220,7 +386,6 @@ export default function InventoryView() {
       const response = await stockTransferService.createTransfer(payload);
 
       if (response.data.success) {
-        // Reset form
         setTransferData({
           product_id: "",
           quantity: "",
@@ -228,10 +393,9 @@ export default function InventoryView() {
           to_van_id: ""
         });
 
-        // Close dialog and refresh inventory
         setShowTransferToVan(false);
         fetchInventory();
-        fetchOptions(); // Refresh available products
+        fetchOptions();
       }
     } catch (err: any) {
       console.error('Error transferring stock:', err);
@@ -239,11 +403,8 @@ export default function InventoryView() {
     }
   };
 
-  // Handle Add New Product form submission
-  // In InventoryView.tsx, update the handleAddProduct function
   const handleAddProduct = async () => {
     try {
-      // Validate required fields
       if (!newProductData.product_name || !newProductData.product_code ||
         !newProductData.unit_price || !newProductData.low_stock_threshold) {
         alert('Please fill in all required fields');
@@ -256,32 +417,29 @@ export default function InventoryView() {
         product_description: newProductData.product_description || null,
         unit_price: parseFloat(newProductData.unit_price),
         low_stock_threshold: parseInt(newProductData.low_stock_threshold),
-        manufacturer_id: newProductData.manufacturer_id
+        manufacturer_id: parseInt(newProductData.manufacturer_id)
       };
 
       const response = await productApprovalService.createRequest(payload);
 
       if (response.data.success) {
-        // Reset form
         setNewProductData({
           product_name: "",
           product_code: "",
           product_description: "",
           unit_price: "",
           low_stock_threshold: "10",
-          manufacturer_id: 1
+          manufacturer_id: "1"
         });
 
         setShowAddProduct(false);
 
-        // Show appropriate message
         if (response.data.warning) {
           alert('Product request submitted! Note: ' + response.data.warning);
         } else {
           alert('Product request submitted successfully! An admin will review and approve it.');
         }
 
-        // Optionally refresh to show pending requests
         fetchInventory();
         fetchOptions();
       }
@@ -292,25 +450,9 @@ export default function InventoryView() {
     }
   };
 
-  // Calculate total van stock for each location (you'll need to implement this properly)
-  const calculateTotalKiribathgodaStock = () => {
-    return 0; // Implement based on your data structure
-  };
-
-  const calculateTotalBattaramullaStock = () => {
-    return 0; // Implement based on your data structure
-  };
-
-  const calculateTotalHomagamaStock = () => {
-    return 0; // Implement based on your data structure
-  };
-
   const calculateTotalVanStock = () => {
-    return 0; // Implement based on your data structure
+    return 0;
   };
-
-  // Rest of your component remains the same...
-  // (Keep all the JSX code exactly as you had it, but update the dropdowns)
 
   if (loading) {
     return (
@@ -334,16 +476,14 @@ export default function InventoryView() {
     );
   }
 
-  // Calculate statistics
   const lowStockCount = inventory.filter(item => item.total_stock < item.low_stock_threshold).length;
   const totalProducts = inventory.length;
   const totalValue = inventory.reduce((sum, item) => sum + (item.total_stock * item.unit_price), 0);
 
   return (
     <>
-      {/* Summary Cards - Keep as is */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        {/* ... keep all your existing summary cards ... */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -405,7 +545,7 @@ export default function InventoryView() {
         </Card>
       </div>
 
-      {/* Action Buttons Card - Keep as is */}
+      {/* Action Buttons Card */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Inventory Actions</CardTitle>
@@ -436,7 +576,7 @@ export default function InventoryView() {
         </CardHeader>
       </Card>
 
-      {/* Inventory Table - Keep as is */}
+      {/* Inventory Table */}
       <Card>
         <CardHeader>
           <CardTitle>Available Stock</CardTitle>
@@ -511,7 +651,6 @@ export default function InventoryView() {
             </Table>
           </div>
 
-          {/* Warning Message - Keep as is */}
           {lowStockCount > 0 && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -528,88 +667,217 @@ export default function InventoryView() {
         </CardContent>
       </Card>
 
-      {/* Receive Stock Dialog - Updated dropdown */}
-      <Dialog open={showReceiveStock} onOpenChange={setShowReceiveStock}>
-        <DialogContent className="max-w-md">
+      {/* Receive Stock Dialog - Multi-item version */}
+      <Dialog open={showReceiveStock} onOpenChange={(open) => {
+        setShowReceiveStock(open);
+        if (!open) {
+          setReceiveItems([]);
+          setReceiveRequestData({
+            manufacturer_id: "",
+            purchase_order_reference: "",
+            notes: ""
+          });
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-green-600" />
-              Receive Stock
+              Receive Stock from Manufacturer
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="product-select">Product *</Label>
-              <select
-                id="product-select"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={receiveStockData.product_id}
-                onChange={(e) => setReceiveStockData({ ...receiveStockData, product_id: e.target.value })}
-                required
-                disabled={loadingOptions}
+          <div className="space-y-6 mt-4">
+            {/* Request Header Information */}
+            <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+              <h4 className="font-semibold text-sm text-gray-700">Receipt Information</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="manufacturer">Manufacturer</Label>
+                  <select
+                    id="manufacturer"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={receiveRequestData.manufacturer_id}
+                    onChange={(e) => setReceiveRequestData({ ...receiveRequestData, manufacturer_id: e.target.value })}
+                  >
+                    <option value="">Select manufacturer (optional)</option>
+                    {manufacturers.map((mfr) => (
+                      <option key={mfr.manufacturer_id} value={mfr.manufacturer_id}>
+                        {mfr.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="po-reference">PO Reference</Label>
+                  <Input
+                    id="po-reference"
+                    type="text"
+                    placeholder="e.g., PO-2024-001"
+                    value={receiveRequestData.purchase_order_reference}
+                    onChange={(e) => setReceiveRequestData({ ...receiveRequestData, purchase_order_reference: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="request-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="request-notes"
+                  placeholder="Add any notes about this receipt..."
+                  value={receiveRequestData.notes}
+                  onChange={(e) => setReceiveRequestData({ ...receiveRequestData, notes: e.target.value })}
+                  rows={2}
+                />
+              </div>
+            </div>
+
+            {/* Items List */}
+            {receiveItems.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm text-gray-700">Items to Receive ({receiveItems.length})</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead>Batch No.</TableHead>
+                        <TableHead>Expiry Date</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {receiveItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.product_name}
+                            <div className="text-xs text-gray-500">{item.product_code}</div>
+                          </TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell>{item.batch_number}</TableCell>
+                          <TableCell>{new Date(item.expiry_date).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">LKR {parseFloat(item.unit_price).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-semibold">
+                            LKR {(parseInt(item.quantity) * parseFloat(item.unit_price)).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveReceiveItem(item.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                <div className="text-right font-semibold">
+                  Total Value: LKR {receiveItems.reduce((sum, item) => 
+                    sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0
+                  ).toLocaleString()}
+                </div>
+              </div>
+            )}
+
+            {/* Add Item Form */}
+            <div className="p-4 border rounded-lg space-y-4">
+              <h4 className="font-semibold text-sm text-gray-700">Add Item</h4>
+              
+              <div className="space-y-2">
+                <Label htmlFor="product-select">Product *</Label>
+                <select
+                  id="product-select"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={currentItem.product_id}
+                  onChange={(e) => {
+                    const productId = e.target.value;
+                    const product = productOptions.find(p => p.product_id.toString() === productId);
+                    setSelectedProduct(product || null);
+                    setCurrentItem({ 
+                      ...currentItem, 
+                      product_id: productId,
+                      unit_price: product ? product.unit_price.toString() : ""
+                    });
+                  }}
+                  disabled={loadingOptions}
+                >
+                  <option value="">Select a product</option>
+                  {productOptions.map((product) => (
+                    <option key={product.product_id} value={product.product_id}>
+                      {product.product_name} ({product.product_code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    placeholder="Enter quantity"
+                    value={currentItem.quantity}
+                    onChange={(e) => setCurrentItem({ ...currentItem, quantity: e.target.value })}
+                    min="1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="unit-price">Unit Price (LKR) *</Label>
+                  <Input
+                    id="unit-price"
+                    type="number"
+                    placeholder="Enter price"
+                    value={currentItem.unit_price}
+                    onChange={(e) => setCurrentItem({ ...currentItem, unit_price: e.target.value })}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="batch-no">Batch No. *</Label>
+                  <Input
+                    id="batch-no"
+                    type="text"
+                    placeholder="Enter batch number"
+                    value={currentItem.batch_number}
+                    onChange={(e) => setCurrentItem({ ...currentItem, batch_number: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="expiry-date">Expiry Date *</Label>
+                  <Input
+                    id="expiry-date"
+                    type="date"
+                    value={currentItem.expiryDate}
+                    onChange={(e) => setCurrentItem({ ...currentItem, expiryDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleAddReceiveItem}
+                variant="outline"
+                className="w-full border-green-600 text-green-600 hover:bg-green-50"
               >
-                <option value="">Select a product</option>
-                {productOptions.map((product) => (
-                  <option key={product.product_id} value={product.product_id}>
-                    {product.product_name} (Available: {product.available_quantity})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  placeholder="Enter quantity"
-                  value={receiveStockData.quantity}
-                  onChange={(e) => setReceiveStockData({ ...receiveStockData, quantity: e.target.value })}
-                  required
-                  min="1"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="unit-price">Unit Price (LKR) *</Label>
-                <Input
-                  id="unit-price"
-                  type="number"
-                  placeholder="Enter price"
-                  value={receiveStockData.unit_price}
-                  onChange={(e) => setReceiveStockData({ ...receiveStockData, unit_price: e.target.value })}
-                  required
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="batch-no">Batch No. *</Label>
-                <Input
-                  id="batch-no"
-                  type="text"
-                  placeholder="Enter batch number"
-                  value={receiveStockData.batch_number}
-                  onChange={(e) => setReceiveStockData({ ...receiveStockData, batch_number: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="expiry-date">Expiry Date *</Label>
-                <Input
-                  id="expiry-date"
-                  type="date"
-                  value={receiveStockData.expiryDate}
-                  onChange={(e) => setReceiveStockData({ ...receiveStockData, expiryDate: e.target.value })}
-                  required
-                />
-              </div>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Item to List
+              </Button>
             </div>
 
             <DialogFooter className="mt-6">
@@ -622,11 +890,12 @@ export default function InventoryView() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleReceiveStock}
+                  onClick={handleSubmitReceiveRequest}
                   className="flex-1 bg-green-600 hover:bg-green-700"
-                  disabled={loadingOptions}
+                  disabled={receiveItems.length === 0}
                 >
-                  Confirm Receipt
+                  <Save className="w-4 h-4 mr-2" />
+                  Submit for Approval
                 </Button>
               </div>
             </DialogFooter>
@@ -634,9 +903,18 @@ export default function InventoryView() {
         </DialogContent>
       </Dialog>
 
-      {/* Transfer to Van Dialog - Updated dropdowns */}
-      <Dialog open={showTransferToVan} onOpenChange={setShowTransferToVan}>
-        <DialogContent className="max-w-md">
+      {/* Transfer to Van Dialog - Multi-item version */}
+      <Dialog open={showTransferToVan} onOpenChange={(open) => {
+        setShowTransferToVan(open);
+        if (!open) {
+          setTransferItems([]);
+          setTransferRequestData({
+            to_van_id: "",
+            notes: ""
+          });
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-blue-600" />
@@ -644,70 +922,146 @@ export default function InventoryView() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="transfer-product">Product *</Label>
-              <select
-                id="transfer-product"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={transferData.product_id}
-                onChange={(e) => setTransferData({ ...transferData, product_id: e.target.value })}
-                required
-                disabled={loadingOptions}
-              >
-                <option value="">Select a product</option>
-                {productOptions.map((product) => (
-                  <option key={product.product_id} value={product.product_id}>
-                    {product.product_name} (Available: {product.available_quantity})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-6 mt-4">
+            {/* Transfer Header Information */}
+            <div className="p-4 bg-blue-50 rounded-lg space-y-4">
+              <h4 className="font-semibold text-sm text-gray-700">Transfer Information</h4>
+              
               <div className="space-y-2">
-                <Label htmlFor="transfer-quantity">Quantity *</Label>
-                <Input
-                  id="transfer-quantity"
-                  type="number"
-                  placeholder="Enter quantity"
-                  value={transferData.quantity}
-                  onChange={(e) => setTransferData({ ...transferData, quantity: e.target.value })}
-                  required
-                  min="1"
-                />
+                <Label htmlFor="transfer-van">Select Van Location *</Label>
+                <select
+                  id="transfer-van"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={transferRequestData.to_van_id}
+                  onChange={(e) => setTransferRequestData({ ...transferRequestData, to_van_id: e.target.value })}
+                >
+                  <option value="">Select a van location</option>
+                  {vanOptions.map((van) => (
+                    <option key={van.van_id} value={van.van_id}>
+                      {van.location_name || `${van.vehicle_number} - ${van.assigned_employee}`}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="transfer-batch">Batch No. *</Label>
-                <Input
-                  id="transfer-batch"
-                  type="text"
-                  placeholder="Enter batch number"
-                  value={transferData.batchNo}
-                  onChange={(e) => setTransferData({ ...transferData, batchNo: e.target.value })}
-                  required
+                <Label htmlFor="transfer-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="transfer-notes"
+                  placeholder="Add any notes about this transfer..."
+                  value={transferRequestData.notes}
+                  onChange={(e) => setTransferRequestData({ ...transferRequestData, notes: e.target.value })}
+                  rows={2}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="van-select">Select Van *</Label>
-              <select
-                id="van-select"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={transferData.to_van_id}
-                onChange={(e) => setTransferData({ ...transferData, to_van_id: e.target.value })}
-                required
-                disabled={loadingOptions}
+            {/* Items List */}
+            {transferItems.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm text-gray-700">Items to Transfer ({transferItems.length})</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead>Batch No.</TableHead>
+                        <TableHead className="text-right">Available</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transferItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.product_name}
+                            <div className="text-xs text-gray-500">{item.product_code}</div>
+                          </TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell>{item.batch_number}</TableCell>
+                          <TableCell className="text-right">{item.available_quantity}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveTransferItem(item.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {/* Add Item Form */}
+            <div className="p-4 border rounded-lg space-y-4">
+              <h4 className="font-semibold text-sm text-gray-700">Add Item</h4>
+              
+              <div className="space-y-2">
+                <Label htmlFor="transfer-product-select">Product *</Label>
+                <select
+                  id="transfer-product-select"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={currentTransferItem.product_id}
+                  onChange={(e) => {
+                    const productId = e.target.value;
+                    const product = productOptions.find(p => p.product_id.toString() === productId);
+                    setSelectedTransferProduct(product || null);
+                    setCurrentTransferItem({ 
+                      ...currentTransferItem, 
+                      product_id: productId
+                    });
+                  }}
+                  disabled={loadingOptions}
+                >
+                  <option value="">Select a product</option>
+                  {productOptions.map((product) => (
+                    <option key={product.product_id} value={product.product_id}>
+                      {product.product_name} ({product.product_code}) - Available: {product.available_quantity}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="transfer-item-quantity">Quantity *</Label>
+                  <Input
+                    id="transfer-item-quantity"
+                    type="number"
+                    placeholder="Enter quantity"
+                    value={currentTransferItem.quantity}
+                    onChange={(e) => setCurrentTransferItem({ ...currentTransferItem, quantity: e.target.value })}
+                    min="1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="transfer-item-batch">Batch No. *</Label>
+                  <Input
+                    id="transfer-item-batch"
+                    type="text"
+                    placeholder="Enter batch number"
+                    value={currentTransferItem.batch_number}
+                    onChange={(e) => setCurrentTransferItem({ ...currentTransferItem, batch_number: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleAddTransferItem}
+                variant="outline"
+                className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
               >
-                <option value="">Select a van</option>
-                {vanOptions.map((van) => (
-                  <option key={van.van_id} value={van.van_id}>
-                    {van.vehicle_number} - {van.assigned_employee}
-                  </option>
-                ))}
-              </select>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Item to Transfer List
+              </Button>
             </div>
 
             <DialogFooter className="mt-6">
@@ -720,11 +1074,12 @@ export default function InventoryView() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleTransferToVan}
-                  className="flex-1 bg-blue-900 hover:bg-blue-800"
-                  disabled={loadingOptions}
+                  onClick={handleSubmitTransferRequest}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={transferItems.length === 0 || !transferRequestData.to_van_id}
                 >
-                  Confirm Transfer
+                  <Save className="w-4 h-4 mr-2" />
+                  Submit for Approval
                 </Button>
               </div>
             </DialogFooter>
@@ -732,7 +1087,7 @@ export default function InventoryView() {
         </DialogContent>
       </Dialog>
 
-      {/* Add New Product Dialog - Updated to match API */}
+      {/* Add New Product Dialog */}
       <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -810,15 +1165,27 @@ export default function InventoryView() {
               </div>
             </div>
 
-            {/* Hidden manufacturer_id - you might want to add a dropdown for this if you have multiple manufacturers */}
-            <input
-              type="hidden"
-              value={newProductData.manufacturer_id}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="manufacturer-select">Manufacturer *</Label>
+              <select
+                id="manufacturer-select"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newProductData.manufacturer_id}
+                onChange={(e) => setNewProductData({ ...newProductData, manufacturer_id: e.target.value })}
+                required
+              >
+                <option value="">Select manufacturer</option>
+                {manufacturers.map((mfr) => (
+                  <option key={mfr.manufacturer_id} value={mfr.manufacturer_id}>
+                    {mfr.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="pt-2">
               <p className="text-xs text-gray-500">
-                * Required fields. After adding the product, you can receive stock using the "Receive Stock" option.
+                * Required fields. Product will be submitted for admin approval.
               </p>
             </div>
 
@@ -835,7 +1202,7 @@ export default function InventoryView() {
                   onClick={handleAddProduct}
                   className="flex-1 bg-purple-600 hover:bg-purple-700"
                 >
-                  Add Product
+                  Submit for Approval
                 </Button>
               </div>
             </DialogFooter>

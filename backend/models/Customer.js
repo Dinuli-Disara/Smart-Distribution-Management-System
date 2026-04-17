@@ -41,7 +41,11 @@ const Customer = sequelize.define('Customer', {
   },
   route_id: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: false,
+    references: {
+      model: 'delivery_route',
+      key: 'route_id'
+    }
   },
   loyalty_level_id: {
     type: DataTypes.INTEGER,

@@ -55,7 +55,7 @@ exports.getEmployee = async (req, res) => {
 // @access  Private (Owner only)
 exports.createEmployee = async (req, res) => {
   try {
-    const { name, email, contact, role, username, password, route_id } = req.body;
+    const { name, email, contact, role, username, password, area_id } = req.body;
 
     // Validation
     if (!name || !email || !role || !username || !password) {
@@ -105,7 +105,7 @@ exports.updateEmployee = async (req, res) => {
     
     if (req.user.role === 'Owner') {
       // Owner can update more fields
-      allowedUpdates = ['name', 'username', 'contact', 'email', 'role', 'route_id'];
+      allowedUpdates = ['name', 'username', 'contact', 'email', 'role', 'area_id'];
     } else {
       // Regular employees can only update their own basic info
       allowedUpdates = ['name', 'username', 'contact'];
@@ -121,9 +121,9 @@ exports.updateEmployee = async (req, res) => {
       });
     }
 
-    // If role is being changed to non-sales, ensure route_id is removed
+    // If role is being changed to non-sales, ensure area_id is removed
     if (req.body.role && req.body.role !== 'Sales Representative') {
-      req.body.route_id = null;
+      req.body.area_id = null;
     }
 
     const employee = await employeeService.updateEmployee(

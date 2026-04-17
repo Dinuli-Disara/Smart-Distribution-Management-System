@@ -330,22 +330,20 @@ exports.createTransfer = async (req, res) => {
 // @desc    Get available stock for transfer
 // @route   GET /api/stock-transfers/available-stock
 // @access  Private
-exports.getAvailableStockForTransfer = async (req, res) => {
+exports.getAvailableStock = async (req, res) => {
   try {
-    const [stock] = await sequelize.query(`
+    const [products] = await sequelize.query(`
       SELECT 
         p.product_id,
         p.product_name,
         p.product_code,
         p.unit_price,
-        SUM(sb.quantity) as available_quantity,
+        COALESCE(SUM(sb.quantity), 0) as available_quantity,
         MIN(sb.expiry_date) as nearest_expiry
       FROM Product p
-      JOIN Stock_Batch sb ON p.product_id = sb.product_id
-      JOIN Stock_Location sl ON sb.location_id = sl.location_id
-      WHERE sl.location_type = 'STORE' 
-        AND sb.batch_status = 'ACTIVE'
-        AND p.is_active = true
+      LEFT JOIN Stock_Batch sb ON p.product_id = sb.product_id AND sb.batch_status = 'ACTIVE'
+      LEFT JOIN Stock_Location sl ON sb.location_id = sl.location_id
+      WHERE p.is_active = true AND (sl.location_type = 'STORE' OR sl.location_type IS NULL)
       GROUP BY p.product_id
       HAVING available_quantity > 0
       ORDER BY p.product_name
@@ -353,13 +351,178 @@ exports.getAvailableStockForTransfer = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: stock
+      data: products
     });
   } catch (error) {
     console.error('Get available stock error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch available stock'
+    });
+  }
+};
+
+// @desc    Get pending transfers (for admin approval)
+// @route   GET /api/stock-transfers/pending
+// @access  Private (Owner)
+exports.getPendingTransfers = async (req, res) => {
+  try {
+    const [transfers] = await sequelize.query(`
+      SELECT 
+        st.*,
+        e.name as transferred_by_name,
+        sl_from.location_name as from_location_name,
+        sl_to.location_name as to_location_name,
+        v.vehicle_number,
+        COUNT(ti.transfer_item_id) as item_count
+      FROM Stock_Transfer st
+      LEFT JOIN Employee e ON st.transferred_by = e.employee_id
+      LEFT JOIN Stock_Location sl_from ON st.from_location_id = sl_from.location_id
+      LEFT JOIN Stock_Location sl_to ON st.to_location_id = sl_to.location_id
+      LEFT JOIN Van v ON sl_to.van_id = v.van_id
+      LEFT JOIN Transfer_Items ti ON st.transfer_id = ti.transfer_id
+      WHERE st.status = 'PENDING'
+      GROUP BY st.transfer_id
+      ORDER BY st.transfer_date DESC
+    `);
+
+    res.status(200).json({
+      success: true,
+      count: transfers.length,
+      data: transfers
+    });
+  } catch (error) {
+    console.error('Get pending transfers error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending transfers'
+    });
+  }
+};
+
+// @desc    Approve transfer
+// @route   PUT /api/stock-transfers/:id/approve
+// @access  Private (Owner)
+exports.approveTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const [result] = await sequelize.query(`
+      UPDATE Stock_Transfer
+      SET status = 'APPROVED', 
+          approved_by = ?, 
+          approved_at = NOW(), 
+          notes = CONCAT(COALESCE(notes, ''), '\nApproval notes: ', ?)
+      WHERE transfer_id = ? AND status = 'PENDING'
+    `, {
+      replacements: [req.user.id, notes || '', id]
+    });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending transfer not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Transfer approved successfully'
+    });
+  } catch (error) {
+    console.error('Approve transfer error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve transfer'
+    });
+  }
+};
+
+// @desc    Reject transfer
+// @route   PUT /api/stock-transfers/:id/reject
+// @access  Private (Owner)
+exports.rejectTransfer = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    // Get transfer details to reverse the stock movement
+    const [transfer] = await sequelize.query(`
+      SELECT * FROM Stock_Transfer WHERE transfer_id = ? AND status = 'PENDING'
+    `, {
+      replacements: [id],
+      transaction
+    });
+
+    if (transfer.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Pending transfer not found'
+      });
+    }
+
+    // Get transfer items
+    const [items] = await sequelize.query(`
+      SELECT * FROM Transfer_Items WHERE transfer_id = ?
+    `, {
+      replacements: [id],
+      transaction
+    });
+
+    // Reverse the stock movements
+    for (const item of items) {
+      // Return stock to source batch
+      await sequelize.query(`
+        UPDATE Stock_Batch
+        SET quantity = quantity + ?
+        WHERE batch_id = ?
+      `, {
+        replacements: [item.quantity_to_transfer, item.source_batch_id],
+        transaction
+      });
+
+      // Remove destination batch
+      if (item.destination_batch_id) {
+        await sequelize.query(`
+          UPDATE Stock_Batch
+          SET batch_status = 'CANCELLED'
+          WHERE batch_id = ?
+        `, {
+          replacements: [item.destination_batch_id],
+          transaction
+        });
+      }
+    }
+
+    // Update transfer status
+    await sequelize.query(`
+      UPDATE Stock_Transfer
+      SET status = 'REJECTED', 
+          approved_by = ?, 
+          approved_at = NOW(), 
+          notes = CONCAT(COALESCE(notes, ''), '\nRejection notes: ', ?)
+      WHERE transfer_id = ?
+    `, {
+      replacements: [req.user.id, notes || '', id],
+      transaction
+    });
+
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      message: 'Transfer rejected and stock reversed'
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Reject transfer error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject transfer'
     });
   }
 };

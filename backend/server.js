@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { sequelize, testConnection } = require('./config/database');
+require('./models/associations');
 
 // Initialize Express app
 const app = express();
@@ -25,6 +26,8 @@ const reportRoutes = require('./routes/reportRoutes');
 const customerAuthRoutes = require('./routes/customerAuthRoutes');
 const deliveryRouteRoutes = require('./routes/deliveryRouteRoutes');
 const productApprovalRoutes = require('./routes/productApprovalRoutes');
+const stockReceiveApprovalRoutes = require('./routes/stockReceiveApprovalRoutes');
+const manufacturerRoutes = require('./routes/manufacturerRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -59,6 +62,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/customer-auth', customerAuthRoutes);
 app.use('/api/delivery-routes', deliveryRouteRoutes);
 app.use('/api/product-approvals', productApprovalRoutes);
+app.use('/api/stock-receive-approvals', stockReceiveApprovalRoutes);
+app.use('/api/manufacturers', manufacturerRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

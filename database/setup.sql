@@ -22,13 +22,15 @@ CREATE TABLE Employee (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    area_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by INT NULL,
     updated_by INT NULL,
     password_reset_token VARCHAR(255) NULL,
     password_reset_expires DATETIME NULL,
-    INDEX idx_employee_role (role)
+    INDEX idx_employee_role (role),
+    FOREIGN KEY (area_id) REFERENCES Delivery_Area(area_id)
 );
 
 -- 2. Insert first employee with NULL for created_by
@@ -53,6 +55,10 @@ CREATE TABLE Employee (
 CREATE TABLE Delivery_Area (
     area_id INT PRIMARY KEY AUTO_INCREMENT,
     area_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     number_of_routes INT DEFAULT 1
 );
 
@@ -555,4 +561,23 @@ CREATE TABLE Stock_Movement (
     INDEX idx_movement_batch (batch_id),
     INDEX idx_movement_from (from_location_id),
     INDEX idx_movement_to (to_location_id)
+);
+
+CREATE TABLE IF NOT EXISTS Product_Approval_Requests (
+    request_id INT PRIMARY KEY AUTO_INCREMENT,
+    product_name VARCHAR(255) NOT NULL,
+    product_code VARCHAR(100),
+    product_description TEXT,
+    unit_price DECIMAL(10,2) NOT NULL,
+    low_stock_threshold INT DEFAULT 10,
+    manufacturer_id INT,
+    requested_by INT NOT NULL,
+    requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
+    reviewed_by INT,
+    reviewed_at DATETIME,
+    review_notes TEXT,
+    FOREIGN KEY (manufacturer_id) REFERENCES Manufacturer(manufacturer_id),
+    FOREIGN KEY (requested_by) REFERENCES Employee(employee_id),
+    FOREIGN KEY (reviewed_by) REFERENCES Employee(employee_id)
 );

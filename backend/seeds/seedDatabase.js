@@ -48,8 +48,8 @@ const seedDatabase = async () => {
     const hashedPassword = await hashPassword('admin123');
 
     await sequelize.query(`
-      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_by, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_at, updated_at, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
       ON DUPLICATE KEY UPDATE username = username
     `, {
       replacements: [
@@ -165,8 +165,8 @@ const seedDatabase = async () => {
     // Clerk
     const clerkPassword = await hashPassword('clerk123');
     await sequelize.query(`
-      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_by, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_at, updated_at, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
       ON DUPLICATE KEY UPDATE username = username
     `, {
       replacements: [
@@ -185,8 +185,8 @@ const seedDatabase = async () => {
     // Sales Representative
     const salesPassword = await hashPassword('sales123');
     await sequelize.query(`
-      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_by, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Employee (name, email, contact, role, username, password, is_active, created_at, updated_at, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
       ON DUPLICATE KEY UPDATE username = username
     `, {
       replacements: [
@@ -205,7 +205,52 @@ const seedDatabase = async () => {
     console.log('   Clerk - Username: clerk, Password: clerk123');
     console.log('   Sales Rep - Username: salesrep, Password: sales123');
 
-    // 8. SEED SAMPLE PRODUCTS
+    // 8. SEED VANS AND VAN LOCATIONS
+    console.log('\n📌 Seeding Vans and Van Locations...');
+
+    // Get sales rep employee ID
+    const [salesRep] = await sequelize.query(`SELECT employee_id FROM Employee WHERE role = 'Sales Representative' LIMIT 1`);
+    const salesRepId = salesRep[0].employee_id;
+
+    // Get delivery areas
+    const [deliveryAreas] = await sequelize.query(`SELECT area_id, area_name FROM Delivery_Area`);
+
+    const vans = [
+      ['KA-1234', 'Kiribathgoda Van', deliveryAreas.find(a => a.area_name === 'Kiribathgoda').area_id, salesRepId],
+      ['BA-5678', 'Battaramulla Van', deliveryAreas.find(a => a.area_name === 'Battaramulla').area_id, salesRepId],
+      ['NU-9012', 'Nugegoda Van', deliveryAreas.find(a => a.area_name === 'Nugegoda').area_id, salesRepId]
+    ];
+
+    for (const van of vans) {
+      // Insert van
+      await sequelize.query(`
+        INSERT INTO Van (vehicle_number, assigned_employee_id, area_id)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE vehicle_number = vehicle_number
+      `, {
+        replacements: [van[0], van[3], van[2]]
+      });
+
+      // Get van ID
+      const [vanResult] = await sequelize.query(`
+        SELECT van_id FROM Van WHERE vehicle_number = ?
+      `, {
+        replacements: [van[0]]
+      });
+      const vanId = vanResult[0].van_id;
+
+      // Insert van location
+      await sequelize.query(`
+        INSERT INTO Stock_Location (location_type, van_id, location_name)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE location_name = location_name
+      `, {
+        replacements: ['VAN', vanId, van[1]]
+      });
+    }
+    console.log('✅ Vans and van locations created');
+
+    // 9. SEED SAMPLE PRODUCTS
     console.log('\n📌 Seeding Sample Products...');
     const [manufacturer] = await sequelize.query(`SELECT manufacturer_id FROM Manufacturer LIMIT 1`);
     const manufacturerId = manufacturer[0].manufacturer_id;
@@ -229,7 +274,7 @@ const seedDatabase = async () => {
     }
     console.log('✅ Sample products created');
 
-    // 9. SEED SAMPLE CUSTOMERS
+    // 10. SEED SAMPLE CUSTOMERS
     console.log('\n📌 Seeding Sample Customers...');
     const [routes] = await sequelize.query(`SELECT route_id FROM Delivery_Route LIMIT 3`);
 
@@ -255,6 +300,50 @@ const seedDatabase = async () => {
     console.log('✅ Sample customers created');
     console.log('   Username: saman, nadeeka, lucky');
     console.log('   Password: customer123 (for all)');
+
+    // 11. SEED SAMPLE STOCK BATCHES (for system to function properly)
+    console.log('\n📌 Seeding Sample Stock Batches...');
+    
+    // Get store location
+    const [locations] = await sequelize.query(`SELECT location_id FROM Stock_Location WHERE location_type = 'STORE' LIMIT 1`);
+    const storeLocationId = locations[0].location_id;
+    
+    // Get all products
+    const [productsList] = await sequelize.query(`SELECT product_id FROM Product WHERE is_active = true`);
+    
+    // Get current date and future date
+    const today = new Date();
+    const futureDate = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
+    
+    const formatDate = (date) => {
+      return date.toISOString().split('T')[0];
+    };
+
+    // Create stock batches for each product
+    for (let i = 0; i < productsList.length; i++) {
+      const product = productsList[i];
+      const quantity = 100 + (i * 50); // 100, 150, 200, 250, 300
+      const unitPrice = 450 + (i * 50); // Different prices
+      
+      await sequelize.query(`
+        INSERT INTO Stock_Batch (product_id, location_id, batch_number, batch_status, quantity, price_per_unit, expiry_date, received_date, created_at, updated_at, created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)
+      `, {
+        replacements: [
+          product.product_id,
+          storeLocationId,
+          `BATCH-${product.product_id}-${today.getTime()}`,
+          'ACTIVE',
+          quantity,
+          unitPrice,
+          formatDate(futureDate),
+          formatDate(today),
+          adminId,
+          adminId
+        ]
+      });
+    }
+    console.log('✅ Sample stock batches created');
 
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('\n📋 Summary of Credentials:');
