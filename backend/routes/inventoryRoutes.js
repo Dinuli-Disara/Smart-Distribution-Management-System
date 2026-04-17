@@ -6,6 +6,7 @@ const {
   getInventoryByLocation,
   getStoreInventory,
   getVanInventory,
+  getVanLocations,
   getInventorySummary,
   receiveStock
 } = require('../controllers/inventoryController');
@@ -19,6 +20,7 @@ router.get('/summary', getInventorySummary);
 // Store and van inventory
 router.get('/store', getStoreInventory);
 router.get('/vans', getVanInventory);
+router.get('/van-locations', getVanLocations);
 router.get('/location/:locationId', getInventoryByLocation);
 
 // Receive stock (Clerk and Owner only)

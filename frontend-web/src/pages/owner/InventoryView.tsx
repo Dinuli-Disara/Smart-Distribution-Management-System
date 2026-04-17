@@ -221,9 +221,10 @@ export default function InventoryView() {
 
   const fetchPendingTransferRequests = async () => {
     try {
-      // TODO: Use getAllTransfers or appropriate endpoint when available
-      // For now, this is a placeholder that will be populated when viewing transfers tab
-      setPendingTransferRequests([]);
+      const response = await stockTransferService.getPendingTransfers();
+      if (response.data.success) {
+        setPendingTransferRequests(response.data.data);
+      }
     } catch (err) {
       console.error('Error fetching pending transfer requests:', err);
     }
@@ -232,9 +233,10 @@ export default function InventoryView() {
   const fetchAllTransferRequests = async () => {
     try {
       setLoadingTransferRequests(true);
-      // TODO: Add getAllTransfers endpoint to stockTransferService
-      // Currently unavailable in the service
-      setAllTransferRequests([]);
+      const response = await stockTransferService.getAllTransfers();
+      if (response.data.success) {
+        setAllTransferRequests(response.data.data);
+      }
     } catch (err) {
       console.error('Error fetching all transfer requests:', err);
     } finally {
@@ -272,7 +274,7 @@ export default function InventoryView() {
   const handleApproveRequest = async (requestId: number) => {
     try {
       const response = await productApprovalService.approveRequest(requestId, reviewNotes || undefined);
-      
+
       if (response.data.success) {
         alert(`Product "${response.data.data.product.product_name}" has been approved and added to inventory!`);
         setShowRequestDetails(false);
@@ -296,7 +298,7 @@ export default function InventoryView() {
 
     try {
       const response = await productApprovalService.rejectRequest(requestId, reviewNotes);
-      
+
       if (response.data.success) {
         alert('Product request has been rejected.');
         setShowRequestDetails(false);
@@ -330,7 +332,7 @@ export default function InventoryView() {
       };
 
       const response = await stockReceiveApprovalService.approveReceiveRequest(requestId, payload);
-      
+
       if (response.data.success) {
         alert(`Stock receive request approved! ${response.data.data.items_processed} items added to inventory.`);
         setShowReceiveRequestDetails(false);
@@ -354,10 +356,10 @@ export default function InventoryView() {
 
     try {
       const response = await stockReceiveApprovalService.rejectReceiveRequest(
-        requestId, 
+        requestId,
         receiveReviewNotes
       );
-      
+
       if (response.data.success) {
         alert('Stock receive request has been rejected.');
         setShowReceiveRequestDetails(false);
@@ -385,7 +387,7 @@ export default function InventoryView() {
   const handleApproveTransferRequest = async (requestId: number) => {
     try {
       const response = await stockTransferService.approveTransfer(requestId, transferReviewNotes || undefined);
-      
+
       if (response.data.success) {
         alert('Stock transfer request approved! Stock has been transferred.');
         setShowTransferRequestDetails(false);
@@ -409,7 +411,7 @@ export default function InventoryView() {
 
     try {
       const response = await stockTransferService.rejectTransfer(requestId, transferReviewNotes);
-      
+
       if (response.data.success) {
         alert('Stock transfer request has been rejected.');
         setShowTransferRequestDetails(false);
@@ -566,6 +568,13 @@ export default function InventoryView() {
             >
               <Package className="w-4 h-4 mr-2" />
               Receive Requests {pendingReceiveCount > 0 && `(${pendingReceiveCount})`}
+            </Button>
+            <Button
+              onClick={() => setActiveTab('transfers')}
+              variant="outline"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50">
+              <Truck className="w-4 h-4 mr-2" />
+              Transfer Requests {pendingTransferCount > 0 && `(${pendingTransferCount})`}
             </Button>
           </div>
         </CardHeader>
@@ -1216,11 +1225,11 @@ export default function InventoryView() {
                     </TableBody>
                   </Table>
                 </div>
-                
+
                 <div className="mt-3 text-right">
                   <p className="text-sm text-gray-600">Total Value</p>
                   <p className="text-xl font-bold text-green-600">
-                    LKR {selectedReceiveRequest.items?.reduce((sum: number, item: any) => 
+                    LKR {selectedReceiveRequest.items?.reduce((sum: number, item: any) =>
                       sum + (item.quantity * item.unit_price), 0
                     ).toLocaleString()}
                   </p>
@@ -1238,7 +1247,7 @@ export default function InventoryView() {
                     <div>
                       <p className="text-sm text-gray-600">Reviewed On</p>
                       <p className="font-semibold">
-                        {selectedReceiveRequest.reviewed_at ? 
+                        {selectedReceiveRequest.reviewed_at ?
                           new Date(selectedReceiveRequest.reviewed_at).toLocaleString() : '-'}
                       </p>
                     </div>
@@ -1313,7 +1322,7 @@ export default function InventoryView() {
               {/* Transfer Information */}
               <div className="p-4 bg-blue-50 rounded-lg space-y-4">
                 <h4 className="font-semibold text-sm text-gray-700">Transfer Information</h4>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">From Location</p>
@@ -1379,7 +1388,7 @@ export default function InventoryView() {
               {selectedTransferRequest.status === 'PENDING' && (
                 <div className="p-4 border rounded-lg space-y-4">
                   <h4 className="font-semibold text-sm text-gray-700">Review Decision</h4>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="transfer-review-notes">Review Notes</Label>
                     <Textarea
@@ -1415,7 +1424,7 @@ export default function InventoryView() {
               {selectedTransferRequest.status !== 'PENDING' && (
                 <div className="p-4 bg-gray-50 rounded-lg space-y-4">
                   <h4 className="font-semibold text-sm text-gray-700">Review Information</h4>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Status</p>

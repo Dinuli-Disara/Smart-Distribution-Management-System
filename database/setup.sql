@@ -166,7 +166,7 @@ CREATE TABLE Stock_Transfer (
     to_location_id INT NOT NULL,
     transfer_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     transferred_by INT NOT NULL,
-    status ENUM('DRAFT', 'PENDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED') DEFAULT 'DRAFT',
+    status ENUM('PENDING', 'COMPLETED', 'REJECTED', 'APPROVED') DEFAULT 'PENDING',
     notes TEXT,
     FOREIGN KEY (from_location_id) REFERENCES Stock_Location(location_id),
     FOREIGN KEY (to_location_id) REFERENCES Stock_Location(location_id),
@@ -185,7 +185,7 @@ CREATE TABLE Transfer_Items (
     source_batch_id INT NOT NULL,     -- Which batch we're taking FROM
     quantity_to_transfer INT NOT NULL, -- How many units to transfer
     unit_price DECIMAL(10,2),         -- Price at time of transfer
-    item_status ENUM('PENDING', 'PROCESSED', 'CANCELLED') DEFAULT 'PENDING',
+    item_status ENUM('PENDING', 'PROCESSED', 'TRANSFERRED', 'COMPLETED', 'REJECTED', 'CANCELLED') DEFAULT 'PENDING',
     
     -- For partial transfers - new batch at destination
     destination_batch_id INT NULL,

@@ -33,6 +33,7 @@ interface Van {
   vehicle_number: string;
   assigned_employee: string;
   location_name?: string;
+  location_id?: number;
 }
 
 interface AvailableProduct {
@@ -84,7 +85,7 @@ export default function InventoryView() {
   const [showReceiveStock, setShowReceiveStock] = useState(false);
   const [showTransferToVan, setShowTransferToVan] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
-   
+
   // State  for multi-item receive
   const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
   const [receiveRequestData, setReceiveRequestData] = useState({
@@ -93,7 +94,7 @@ export default function InventoryView() {
     notes: ""
   });
   const [selectedProduct, setSelectedProduct] = useState<AvailableProduct | null>(null);
-  
+
   // State for multi-item transfer
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [transferRequestData, setTransferRequestData] = useState({
@@ -101,7 +102,7 @@ export default function InventoryView() {
     notes: ""
   });
   const [selectedTransferProduct, setSelectedTransferProduct] = useState<AvailableProduct | null>(null);
-  
+
   // Single item form state (for adding to list)
   const [currentItem, setCurrentItem] = useState({
     product_id: "",
@@ -164,25 +165,82 @@ export default function InventoryView() {
   const fetchOptions = async () => {
     try {
       setLoadingOptions(true);
+      console.log('Fetching options...');
 
-      // Fetch all active products for receive stock dropdown
-      const productsResponse = await productService.getAllProducts();
-      if (productsResponse.data.success) {
-        setProductOptions(productsResponse.data.data);
+      // Fetch available products for transfer dropdown
+      try {
+        const productsResponse = await stockTransferService.getAvailableStock();
+        console.log('Available stock response:', productsResponse);
+
+        if (productsResponse.data.success) {
+          const products = productsResponse.data.data || [];
+          console.log('Available products loaded:', products);
+
+          // Transform to match AvailableProduct interface
+          const availableProducts = products.map((p: any) => ({
+            product_id: p.product_id,
+            product_name: p.product_name,
+            product_code: p.product_code || '-',
+            unit_price: p.unit_price || 0,
+            available_quantity: p.available_quantity || 0,
+            nearest_expiry: p.nearest_expiry || ''
+          }));
+
+          setProductOptions(availableProducts);
+          console.log('✅ Available products for transfer:', availableProducts.length);
+
+          // Log each product for debugging
+          availableProducts.forEach((p: AvailableProduct) => {
+            console.log(`  - ${p.product_name}: ${p.available_quantity} units available`);
+          });
+        } else {
+          console.warn('Available stock API returned success: false');
+        }
+      } catch (err) {
+        console.error('Error fetching available stock:', err);
+
+        // Fallback: Try to get all products and filter by store_stock
+        try {
+          const allProductsResponse = await productService.getAllProducts();
+          console.log('Fallback - All products response:', allProductsResponse);
+
+          if (allProductsResponse.data.success) {
+            const allProducts = allProductsResponse.data.data || [];
+            const productsWithStock = allProducts
+              .filter((p: any) => (p.store_stock || 0) > 0)
+              .map((p: any) => ({
+                product_id: p.product_id,
+                product_name: p.product_name,
+                product_code: p.product_code || '-',
+                unit_price: p.unit_price || 0,
+                available_quantity: p.store_stock || 0,
+                nearest_expiry: p.nearest_expiry || ''
+              }));
+
+            setProductOptions(productsWithStock);
+            console.log('✅ Products from fallback:', productsWithStock.length);
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback also failed:', fallbackErr);
+          setProductOptions([]);
+        }
       }
 
-      const vansResponse = await inventoryService.getVanInventory();
-      if (vansResponse.data.success) {
-        const vans = vansResponse.data.data.map((van: any) => ({
-          van_id: van.van_id,
-          vehicle_number: van.vehicle_number,
-          assigned_employee: van.assigned_employee,
-          location_name: van.location_name
-        }));
-        setVanOptions(vans);
+      // Fetch van locations (same as before)
+      try {
+        const vanLocationsResponse = await api.get('/inventory/van-locations');
+        console.log('Van locations response:', vanLocationsResponse);
+
+        if (vanLocationsResponse.data.success) {
+          setVanOptions(vanLocationsResponse.data.data || []);
+          console.log('✅ Van locations loaded:', vanLocationsResponse.data.data?.length || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching van locations:', err);
       }
+
     } catch (err) {
-      console.error('Error fetching options:', err);
+      console.error('Error in fetchOptions:', err);
     } finally {
       setLoadingOptions(false);
     }
@@ -216,8 +274,8 @@ export default function InventoryView() {
   };
 
   const handleAddReceiveItem = () => {
-    if (!selectedProduct || !currentItem.quantity || !currentItem.batch_number || 
-        !currentItem.expiryDate || !currentItem.unit_price) {
+    if (!selectedProduct || !currentItem.quantity || !currentItem.batch_number ||
+      !currentItem.expiryDate || !currentItem.unit_price) {
       alert('Please fill in all item fields');
       return;
     }
@@ -234,7 +292,7 @@ export default function InventoryView() {
     };
 
     setReceiveItems([...receiveItems, newItem]);
-    
+
     // Reset current item form
     setCurrentItem({
       product_id: "",
@@ -258,7 +316,7 @@ export default function InventoryView() {
 
     const quantity = parseInt(currentTransferItem.quantity);
     const available = selectedTransferProduct.available_quantity || 0;
-    
+
     if (quantity > available) {
       alert(`Cannot transfer ${quantity} units. Only ${available} units available in store.`);
       return;
@@ -275,7 +333,7 @@ export default function InventoryView() {
     };
 
     setTransferItems([...transferItems, newItem]);
-    
+
     // Reset current transfer item form
     setCurrentTransferItem({
       product_id: "",
@@ -313,7 +371,7 @@ export default function InventoryView() {
 
       if (response.data.success) {
         alert('Stock receive request submitted successfully! Waiting for admin approval.');
-        
+
         // Reset all forms
         setReceiveItems([]);
         setReceiveRequestData({
@@ -355,7 +413,7 @@ export default function InventoryView() {
 
       if (response.data.success) {
         alert('Stock transfer request submitted successfully! Waiting for admin approval.');
-        
+
         // Reset all forms
         setTransferItems([]);
         setTransferRequestData({
@@ -363,7 +421,7 @@ export default function InventoryView() {
           notes: ""
         });
         setShowTransferToVan(false);
-        
+
         // Refresh inventory
         fetchInventory();
       }
@@ -691,7 +749,7 @@ export default function InventoryView() {
             {/* Request Header Information */}
             <div className="p-4 bg-gray-50 rounded-lg space-y-4">
               <h4 className="font-semibold text-sm text-gray-700">Receipt Information</h4>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="manufacturer">Manufacturer</Label>
@@ -780,9 +838,9 @@ export default function InventoryView() {
                     </TableBody>
                   </Table>
                 </div>
-                
+
                 <div className="text-right font-semibold">
-                  Total Value: LKR {receiveItems.reduce((sum, item) => 
+                  Total Value: LKR {receiveItems.reduce((sum, item) =>
                     sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0
                   ).toLocaleString()}
                 </div>
@@ -792,32 +850,43 @@ export default function InventoryView() {
             {/* Add Item Form */}
             <div className="p-4 border rounded-lg space-y-4">
               <h4 className="font-semibold text-sm text-gray-700">Add Item</h4>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="product-select">Product *</Label>
+                <Label htmlFor="transfer-product-select">Product *</Label>
                 <select
-                  id="product-select"
+                  id="transfer-product-select"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={currentItem.product_id}
+                  value={currentTransferItem.product_id}
                   onChange={(e) => {
                     const productId = e.target.value;
                     const product = productOptions.find(p => p.product_id.toString() === productId);
-                    setSelectedProduct(product || null);
-                    setCurrentItem({ 
-                      ...currentItem, 
-                      product_id: productId,
-                      unit_price: product ? product.unit_price.toString() : ""
+                    setSelectedTransferProduct(product || null);
+                    setCurrentTransferItem({
+                      ...currentTransferItem,
+                      product_id: productId
                     });
+                    console.log('Selected product:', product);
                   }}
                   disabled={loadingOptions}
                 >
                   <option value="">Select a product</option>
-                  {productOptions.map((product) => (
-                    <option key={product.product_id} value={product.product_id}>
-                      {product.product_name} ({product.product_code})
-                    </option>
-                  ))}
+                  {loadingOptions ? (
+                    <option disabled>Loading products...</option>
+                  ) : productOptions.length > 0 ? (
+                    productOptions.map((product) => (
+                      <option key={product.product_id} value={product.product_id}>
+                        {product.product_name} ({product.product_code}) - Available: {product.available_quantity || 0} units
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>No products with available stock</option>
+                  )}
                 </select>
+                {!loadingOptions && productOptions.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    No products available in store. Please receive stock first.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -926,22 +995,34 @@ export default function InventoryView() {
             {/* Transfer Header Information */}
             <div className="p-4 bg-blue-50 rounded-lg space-y-4">
               <h4 className="font-semibold text-sm text-gray-700">Transfer Information</h4>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="transfer-van">Select Van Location *</Label>
+                <Label htmlFor="transfer-van">Select Destination Location *</Label>
                 <select
                   id="transfer-van"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={transferRequestData.to_van_id}
                   onChange={(e) => setTransferRequestData({ ...transferRequestData, to_van_id: e.target.value })}
+                  disabled={loadingOptions}
                 >
                   <option value="">Select a van location</option>
-                  {vanOptions.map((van) => (
-                    <option key={van.van_id} value={van.van_id}>
-                      {van.location_name || `${van.vehicle_number} - ${van.assigned_employee}`}
-                    </option>
-                  ))}
+                  {loadingOptions ? (
+                    <option disabled>Loading locations...</option>
+                  ) : vanOptions.length > 0 ? (
+                    vanOptions.map((van) => (
+                      <option key={van.van_id} value={van.van_id}>
+                        {van.location_name || `${van.vehicle_number} - ${van.assigned_employee}`}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>No van locations available</option>
+                  )}
                 </select>
+                {!loadingOptions && vanOptions.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    No van locations found. Please ensure vans are set up in the system.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1002,7 +1083,7 @@ export default function InventoryView() {
             {/* Add Item Form */}
             <div className="p-4 border rounded-lg space-y-4">
               <h4 className="font-semibold text-sm text-gray-700">Add Item</h4>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="transfer-product-select">Product *</Label>
                 <select
@@ -1013,8 +1094,8 @@ export default function InventoryView() {
                     const productId = e.target.value;
                     const product = productOptions.find(p => p.product_id.toString() === productId);
                     setSelectedTransferProduct(product || null);
-                    setCurrentTransferItem({ 
-                      ...currentTransferItem, 
+                    setCurrentTransferItem({
+                      ...currentTransferItem,
                       product_id: productId
                     });
                   }}

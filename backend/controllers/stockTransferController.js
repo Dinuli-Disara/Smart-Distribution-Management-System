@@ -7,24 +7,26 @@ const { sequelize } = require('../config/database');
 exports.getAllTransfers = async (req, res) => {
   try {
     const { status } = req.query;
-    
+
     let whereClause = '';
     if (status) {
       whereClause = `WHERE st.status = '${status}'`;
     }
 
+    // In getAllTransfers
     const [transfers] = await sequelize.query(`
       SELECT 
         st.*,
         e.name as transferred_by_name,
-        sl_from.location_type as from_location_type,
+        rv.name as reviewed_by_name,
         sl_from.location_name as from_location_name,
-        sl_to.location_type as to_location_type,
         sl_to.location_name as to_location_name,
         v.vehicle_number,
-        COUNT(ti.transfer_item_id) as item_count
+        COUNT(ti.transfer_item_id) as item_count,
+        DATEDIFF(NOW(), st.transfer_date) as days_pending
       FROM Stock_Transfer st
       LEFT JOIN Employee e ON st.transferred_by = e.employee_id
+      LEFT JOIN Employee rv ON st.reviewed_by = rv.employee_id
       LEFT JOIN Stock_Location sl_from ON st.from_location_id = sl_from.location_id
       LEFT JOIN Stock_Location sl_to ON st.to_location_id = sl_to.location_id
       LEFT JOIN Van v ON sl_to.van_id = v.van_id
@@ -32,7 +34,7 @@ exports.getAllTransfers = async (req, res) => {
       ${whereClause}
       GROUP BY st.transfer_id
       ORDER BY st.transfer_date DESC
-    `);
+`   );
 
     res.status(200).json({
       success: true,
@@ -111,17 +113,18 @@ exports.getTransfer = async (req, res) => {
   }
 };
 
-// @desc    Create stock transfer (Store to Van)
+// @desc    Create stock transfer request (Store to Van) - PENDING status
 // @route   POST /api/stock-transfers
 // @access  Private (Clerk, Owner)
 exports.createTransfer = async (req, res) => {
   const transaction = await sequelize.transaction();
-  
+
   try {
     const { to_van_id, items, notes } = req.body;
 
     // Validation
     if (!to_van_id || !items || items.length === 0) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Please provide van and items to transfer'
@@ -130,7 +133,7 @@ exports.createTransfer = async (req, res) => {
 
     // Get store location (from)
     const [storeLocation] = await sequelize.query(`
-      SELECT location_id FROM Stock_Location 
+      SELECT location_id, location_name FROM Stock_Location 
       WHERE location_type = 'STORE' 
       LIMIT 1
     `, { transaction });
@@ -145,8 +148,10 @@ exports.createTransfer = async (req, res) => {
 
     // Get van location (to)
     const [vanLocation] = await sequelize.query(`
-      SELECT location_id FROM Stock_Location 
-      WHERE location_type = 'VAN' AND van_id = ?
+      SELECT sl.location_id, sl.location_name, v.vehicle_number
+      FROM Stock_Location sl
+      JOIN Van v ON sl.van_id = v.van_id
+      WHERE sl.location_type = 'VAN' AND sl.van_id = ?
     `, {
       replacements: [to_van_id],
       transaction
@@ -163,13 +168,13 @@ exports.createTransfer = async (req, res) => {
     const fromLocationId = storeLocation[0].location_id;
     const toLocationId = vanLocation[0].location_id;
 
-    // Create transfer record
+    // Create transfer record with PENDING status (NOT COMPLETED)
     const transferNumber = `TRF-${Date.now()}`;
-    
+
     const [transferResult] = await sequelize.query(`
       INSERT INTO Stock_Transfer 
-      (transfer_number, from_location_id, to_location_id, transferred_by, status, notes)
-      VALUES (?, ?, ?, ?, 'PENDING', ?)
+      (transfer_number, from_location_id, to_location_id, transferred_by, status, notes, transfer_date)
+      VALUES (?, ?, ?, ?, 'PENDING', ?, NOW())
     `, {
       replacements: [
         transferNumber,
@@ -183,44 +188,75 @@ exports.createTransfer = async (req, res) => {
 
     const transferId = transferResult;
 
-    // Process each item
+    // Validate and insert transfer items (NO stock movement yet)
     for (const item of items) {
-      const { product_id, quantity } = item;
+      const { product_id, quantity, batch_number } = item;
 
       if (!product_id || !quantity || quantity <= 0) {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
-          message: 'Invalid item data'
+          message: 'Invalid item data. Product and quantity are required.'
         });
       }
 
-      // Get oldest batch with sufficient quantity (FIFO)
-      const [batches] = await sequelize.query(`
-        SELECT batch_id, quantity, price_per_unit, expiry_date
-        FROM Stock_Batch
-        WHERE product_id = ? 
-          AND location_id = ?
-          AND batch_status = 'ACTIVE'
-          AND quantity >= ?
-        ORDER BY expiry_date ASC, received_date ASC
-        LIMIT 1
-      `, {
-        replacements: [product_id, fromLocationId, quantity],
-        transaction
-      });
+      // If batch_number is provided, verify it exists and has sufficient quantity
+      let sourceBatchId = null;
+      let pricePerUnit = null;
 
-      if (batches.length === 0) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient stock for product ID ${product_id}`
+      if (batch_number) {
+        const [batches] = await sequelize.query(`
+          SELECT batch_id, quantity, price_per_unit, expiry_date
+          FROM Stock_Batch
+          WHERE product_id = ? 
+            AND location_id = ?
+            AND batch_number = ?
+            AND batch_status = 'ACTIVE'
+            AND quantity >= ?
+        `, {
+          replacements: [product_id, fromLocationId, batch_number, quantity],
+          transaction
         });
+
+        if (batches.length === 0) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for product ID ${product_id} with batch number ${batch_number}`
+          });
+        }
+
+        sourceBatchId = batches[0].batch_id;
+        pricePerUnit = batches[0].price_per_unit;
+      } else {
+        // Get oldest batch with sufficient quantity (FIFO)
+        const [batches] = await sequelize.query(`
+          SELECT batch_id, quantity, price_per_unit, expiry_date, batch_number
+          FROM Stock_Batch
+          WHERE product_id = ? 
+            AND location_id = ?
+            AND batch_status = 'ACTIVE'
+            AND quantity >= ?
+          ORDER BY expiry_date ASC, received_date ASC
+          LIMIT 1
+        `, {
+          replacements: [product_id, fromLocationId, quantity],
+          transaction
+        });
+
+        if (batches.length === 0) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for product ID ${product_id}`
+          });
+        }
+
+        sourceBatchId = batches[0].batch_id;
+        pricePerUnit = batches[0].price_per_unit;
       }
 
-      const sourceBatch = batches[0];
-
-      // Create transfer item
+      // Create transfer item (PENDING - no stock movement yet)
       await sequelize.query(`
         INSERT INTO Transfer_Items
         (transfer_id, product_id, source_batch_id, quantity_to_transfer, unit_price, item_status)
@@ -229,88 +265,19 @@ exports.createTransfer = async (req, res) => {
         replacements: [
           transferId,
           product_id,
-          sourceBatch.batch_id,
+          sourceBatchId,
           quantity,
-          sourceBatch.price_per_unit
-        ],
-        transaction
-      });
-
-      // Deduct from source batch
-      await sequelize.query(`
-        UPDATE Stock_Batch
-        SET quantity = quantity - ?,
-            updated_by = ?,
-            updated_at = NOW()
-        WHERE batch_id = ?
-      `, {
-        replacements: [quantity, req.user.id, sourceBatch.batch_id],
-        transaction
-      });
-
-      // Create new batch in destination (van)
-      const [newBatchResult] = await sequelize.query(`
-        INSERT INTO Stock_Batch
-        (product_id, location_id, batch_number, quantity, price_per_unit, expiry_date, received_date, batch_status, parent_batch_id, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 'ACTIVE', ?, ?, ?)
-      `, {
-        replacements: [
-          product_id,
-          toLocationId,
-          `VAN-${Date.now()}-${product_id}`,
-          quantity,
-          sourceBatch.price_per_unit,
-          sourceBatch.expiry_date,
-          sourceBatch.batch_id,
-          req.user.id,
-          req.user.id
-        ],
-        transaction
-      });
-
-      // Update transfer item with destination batch
-      await sequelize.query(`
-        UPDATE Transfer_Items
-        SET destination_batch_id = ?, item_status = 'PROCESSED'
-        WHERE transfer_id = ? AND product_id = ?
-      `, {
-        replacements: [newBatchResult, transferId, product_id],
-        transaction
-      });
-
-      // Log stock movement
-      await sequelize.query(`
-        INSERT INTO Stock_Movement
-        (product_id, from_location_id, to_location_id, quantity_change, movement_type, reference_id, created_by)
-        VALUES (?, ?, ?, ?, 'TRANSFER', ?, ?)
-      `, {
-        replacements: [
-          product_id,
-          fromLocationId,
-          toLocationId,
-          quantity,
-          transferId,
-          req.user.id
+          pricePerUnit
         ],
         transaction
       });
     }
 
-    // Update transfer status to completed
-    await sequelize.query(`
-      UPDATE Stock_Transfer
-      SET status = 'COMPLETED'
-      WHERE transfer_id = ?
-    `, {
-      replacements: [transferId],
-      transaction
-    });
-
     await transaction.commit();
 
     res.status(201).json({
       success: true,
-      message: 'Stock transfer completed successfully',
+      message: 'Stock transfer request submitted successfully. Waiting for admin approval.',
       data: {
         transfer_id: transferId,
         transfer_number: transferNumber
@@ -321,17 +288,37 @@ exports.createTransfer = async (req, res) => {
     console.error('Create transfer error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create transfer',
+      message: 'Failed to create transfer request',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
+
+// backend/controllers/stockTransferController.js
 
 // @desc    Get available stock for transfer
 // @route   GET /api/stock-transfers/available-stock
 // @access  Private
 exports.getAvailableStock = async (req, res) => {
   try {
+    // First, get the store location ID
+    const [storeLocation] = await sequelize.query(`
+      SELECT location_id FROM Stock_Location 
+      WHERE location_type = 'STORE' 
+      LIMIT 1
+    `);
+
+    if (storeLocation.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: 'No store location found'
+      });
+    }
+
+    const storeLocationId = storeLocation[0].location_id;
+
+    // Get products with available stock in store
     const [products] = await sequelize.query(`
       SELECT 
         p.product_id,
@@ -339,25 +326,33 @@ exports.getAvailableStock = async (req, res) => {
         p.product_code,
         p.unit_price,
         COALESCE(SUM(sb.quantity), 0) as available_quantity,
-        MIN(sb.expiry_date) as nearest_expiry
+        MIN(sb.expiry_date) as nearest_expiry,
+        COUNT(DISTINCT sb.batch_id) as batch_count
       FROM Product p
-      LEFT JOIN Stock_Batch sb ON p.product_id = sb.product_id AND sb.batch_status = 'ACTIVE'
-      LEFT JOIN Stock_Location sl ON sb.location_id = sl.location_id
-      WHERE p.is_active = true AND (sl.location_type = 'STORE' OR sl.location_type IS NULL)
+      INNER JOIN Stock_Batch sb ON p.product_id = sb.product_id 
+        AND sb.batch_status = 'ACTIVE'
+        AND sb.location_id = ?
+      WHERE p.is_active = true
       GROUP BY p.product_id
       HAVING available_quantity > 0
       ORDER BY p.product_name
-    `);
+    `, {
+      replacements: [storeLocationId]
+    });
+
+    console.log(`Found ${products.length} products with available stock`);
 
     res.status(200).json({
       success: true,
+      count: products.length,
       data: products
     });
   } catch (error) {
     console.error('Get available stock error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch available stock'
+      message: 'Failed to fetch available stock',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -400,23 +395,192 @@ exports.getPendingTransfers = async (req, res) => {
   }
 };
 
-// @desc    Approve transfer
+// backend/controllers/stockTransferController.js
+
+// @desc    Approve transfer request (Owner)
 // @route   PUT /api/stock-transfers/:id/approve
 // @access  Private (Owner)
 exports.approveTransfer = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    console.log(`Approving transfer ${id}`);
+
+    // Get transfer details
+    const [transfers] = await sequelize.query(`
+      SELECT * FROM Stock_Transfer 
+      WHERE transfer_id = ? AND status = 'PENDING'
+    `, {
+      replacements: [id],
+      transaction
+    });
+
+    if (transfers.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Pending transfer not found'
+      });
+    }
+
+    const transfer = transfers[0];
+
+    // Get transfer items with source batch details
+    const [items] = await sequelize.query(`
+      SELECT 
+        ti.*, 
+        sb.batch_number, 
+        sb.expiry_date, 
+        sb.price_per_unit,
+        sb.quantity as current_quantity,
+        p.product_name,
+        p.product_id
+      FROM Transfer_Items ti
+      JOIN Stock_Batch sb ON ti.source_batch_id = sb.batch_id
+      JOIN Product p ON ti.product_id = p.product_id
+      WHERE ti.transfer_id = ? AND ti.item_status = 'PENDING'
+    `, {
+      replacements: [id],
+      transaction
+    });
+
+    if (items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'No items found for this transfer'
+      });
+    }
+
+    // Process each item
+    for (const item of items) {
+      // Verify source batch still has sufficient quantity
+      if (item.current_quantity < item.quantity_to_transfer) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${item.product_name}. Current: ${item.current_quantity}, Requested: ${item.quantity_to_transfer}`
+        });
+      }
+
+      // Deduct from source batch
+      await sequelize.query(`
+        UPDATE Stock_Batch
+        SET quantity = quantity - ?,
+            updated_by = ?,
+            updated_at = NOW()
+        WHERE batch_id = ?
+      `, {
+        replacements: [item.quantity_to_transfer, req.user.id, item.source_batch_id],
+        transaction
+      });
+
+      // Create new batch in destination (van) with parent_batch_id
+      const newBatchNumber = `VAN-${Date.now()}-${item.product_id}`;
+
+      const [newBatchResult] = await sequelize.query(`
+        INSERT INTO Stock_Batch
+        (product_id, location_id, batch_number, quantity, price_per_unit, expiry_date, received_date, batch_status, parent_batch_id, created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 'ACTIVE', ?, ?, ?)
+      `, {
+        replacements: [
+          item.product_id,
+          transfer.to_location_id,
+          newBatchNumber,
+          item.quantity_to_transfer,
+          item.price_per_unit,
+          item.expiry_date,
+          item.source_batch_id,
+          req.user.id,
+          req.user.id
+        ],
+        transaction
+      });
+
+      // Update transfer item with destination batch
+      await sequelize.query(`
+        UPDATE Transfer_Items
+        SET destination_batch_id = ?, item_status = 'TRANSFERRED'
+        WHERE transfer_item_id = ?
+      `, {
+        replacements: [newBatchResult, item.transfer_item_id],
+        transaction
+      });
+
+      // Log stock movement
+      await sequelize.query(`
+        INSERT INTO Stock_Movement
+        (product_id, from_location_id, to_location_id, quantity_change, movement_type, reference_id, created_by)
+        VALUES (?, ?, ?, ?, 'TRANSFER', ?, ?)
+      `, {
+        replacements: [
+          item.product_id,
+          transfer.from_location_id,
+          transfer.to_location_id,
+          item.quantity_to_transfer,
+          id,
+          req.user.id
+        ],
+        transaction
+      });
+    }
+
+    // Update transfer status with new columns
+    await sequelize.query(`
+      UPDATE Stock_Transfer
+      SET status = 'APPROVED', 
+          reviewed_by = ?, 
+          reviewed_at = NOW(), 
+          review_notes = ?
+      WHERE transfer_id = ?
+    `, {
+      replacements: [req.user.id, notes || null, id],
+      transaction
+    });
+
+    await transaction.commit();
+
+    console.log(`Transfer ${id} approved successfully`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Transfer approved successfully. Stock has been moved to van.',
+      data: {
+        transfer_id: id,
+        items_processed: items.length
+      }
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Approve transfer error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve transfer',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Reject transfer request (Owner)
+// @route   PUT /api/stock-transfers/:id/reject
+// @access  Private (Owner)
+exports.rejectTransfer = async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
 
     const [result] = await sequelize.query(`
       UPDATE Stock_Transfer
-      SET status = 'APPROVED', 
-          approved_by = ?, 
-          approved_at = NOW(), 
-          notes = CONCAT(COALESCE(notes, ''), '\nApproval notes: ', ?)
+      SET status = 'REJECTED', 
+          reviewed_by = ?, 
+          reviewed_at = NOW(), 
+          review_notes = ?
       WHERE transfer_id = ? AND status = 'PENDING'
     `, {
-      replacements: [req.user.id, notes || '', id]
+      replacements: [req.user.id, notes || null, id]
     });
 
     if (result.affectedRows === 0) {
@@ -426,99 +590,20 @@ exports.approveTransfer = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Transfer approved successfully'
-    });
-  } catch (error) {
-    console.error('Approve transfer error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to approve transfer'
-    });
-  }
-};
-
-// @desc    Reject transfer
-// @route   PUT /api/stock-transfers/:id/reject
-// @access  Private (Owner)
-exports.rejectTransfer = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  
-  try {
-    const { id } = req.params;
-    const { notes } = req.body;
-
-    // Get transfer details to reverse the stock movement
-    const [transfer] = await sequelize.query(`
-      SELECT * FROM Stock_Transfer WHERE transfer_id = ? AND status = 'PENDING'
-    `, {
-      replacements: [id],
-      transaction
-    });
-
-    if (transfer.length === 0) {
-      await transaction.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'Pending transfer not found'
-      });
-    }
-
-    // Get transfer items
-    const [items] = await sequelize.query(`
-      SELECT * FROM Transfer_Items WHERE transfer_id = ?
-    `, {
-      replacements: [id],
-      transaction
-    });
-
-    // Reverse the stock movements
-    for (const item of items) {
-      // Return stock to source batch
-      await sequelize.query(`
-        UPDATE Stock_Batch
-        SET quantity = quantity + ?
-        WHERE batch_id = ?
-      `, {
-        replacements: [item.quantity_to_transfer, item.source_batch_id],
-        transaction
-      });
-
-      // Remove destination batch
-      if (item.destination_batch_id) {
-        await sequelize.query(`
-          UPDATE Stock_Batch
-          SET batch_status = 'CANCELLED'
-          WHERE batch_id = ?
-        `, {
-          replacements: [item.destination_batch_id],
-          transaction
-        });
-      }
-    }
-
-    // Update transfer status
+    // Update transfer items status
     await sequelize.query(`
-      UPDATE Stock_Transfer
-      SET status = 'REJECTED', 
-          approved_by = ?, 
-          approved_at = NOW(), 
-          notes = CONCAT(COALESCE(notes, ''), '\nRejection notes: ', ?)
+      UPDATE Transfer_Items
+      SET item_status = 'REJECTED'
       WHERE transfer_id = ?
     `, {
-      replacements: [req.user.id, notes || '', id],
-      transaction
+      replacements: [id]
     });
-
-    await transaction.commit();
 
     res.status(200).json({
       success: true,
-      message: 'Transfer rejected and stock reversed'
+      message: 'Transfer request rejected'
     });
   } catch (error) {
-    await transaction.rollback();
     console.error('Reject transfer error:', error);
     res.status(500).json({
       success: false,

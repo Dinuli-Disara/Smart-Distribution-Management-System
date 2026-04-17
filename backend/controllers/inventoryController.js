@@ -1,6 +1,108 @@
 // backend/controllers/inventoryController.js
 const { sequelize } = require('../config/database');
 
+// @desc    Get all van locations for dropdown
+// @route   GET /api/inventory/van-locations
+// @access  Private
+exports.getVanLocations = async (req, res) => {
+  try {
+    const [locations] = await sequelize.query(`
+      SELECT 
+        sl.location_id,
+        sl.location_name,
+        sl.location_type,
+        v.van_id,
+        v.vehicle_number,
+        v.is_active as van_is_active,
+        e.name as assigned_employee
+      FROM Stock_Location sl
+      JOIN Van v ON sl.van_id = v.van_id
+      LEFT JOIN Employee e ON v.assigned_employee_id = e.employee_id
+      WHERE sl.location_type = 'VAN' 
+        AND v.is_active = TRUE
+        AND (sl.is_active = TRUE OR sl.is_active IS NULL)
+      ORDER BY sl.location_name
+    `);
+
+    // If no locations found, try to get vans directly
+    if (locations.length === 0) {
+      const [vans] = await sequelize.query(`
+        SELECT 
+          v.van_id,
+          v.vehicle_number,
+          e.name as assigned_employee
+        FROM Van v
+        LEFT JOIN Employee e ON v.assigned_employee_id = e.employee_id
+        WHERE v.is_active = TRUE
+        ORDER BY v.vehicle_number
+      `);
+      
+      const vanLocations = vans.map(van => ({
+        van_id: van.van_id,
+        location_id: null,
+        vehicle_number: van.vehicle_number,
+        assigned_employee: van.assigned_employee || 'Unassigned',
+        location_name: `${van.vehicle_number} - ${van.assigned_employee || 'Unassigned'}`
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: vanLocations,
+        warning: 'No Stock_Location entries found for active vans. Using van data directly.'
+      });
+    }
+
+    // Format the response
+    const vanLocations = locations.map(loc => ({
+      van_id: loc.van_id,
+      location_id: loc.location_id,
+      vehicle_number: loc.vehicle_number,
+      assigned_employee: loc.assigned_employee || 'Unassigned',
+      location_name: loc.location_name || `${loc.vehicle_number} - ${loc.assigned_employee || 'Unassigned'}`
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: vanLocations
+    });
+  } catch (error) {
+    console.error('Get van locations error:', error);
+    
+    // Final fallback - just get active vans
+    try {
+      const [vans] = await sequelize.query(`
+        SELECT 
+          v.van_id,
+          v.vehicle_number,
+          e.name as assigned_employee
+        FROM Van v
+        LEFT JOIN Employee e ON v.assigned_employee_id = e.employee_id
+        WHERE v.is_active = TRUE
+        ORDER BY v.vehicle_number
+      `);
+      
+      const vanLocations = vans.map(van => ({
+        van_id: van.van_id,
+        location_id: null,
+        vehicle_number: van.vehicle_number,
+        assigned_employee: van.assigned_employee || 'Unassigned',
+        location_name: `${van.vehicle_number} - ${van.assigned_employee || 'Unassigned'}`
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: vanLocations
+      });
+    } catch (fallbackError) {
+      console.error('Fallback error:', fallbackError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch van locations'
+      });
+    }
+  }
+};
+
 // @desc    Get inventory by location (Store or Van)
 // @route   GET /api/inventory/location/:locationId
 // @access  Private
