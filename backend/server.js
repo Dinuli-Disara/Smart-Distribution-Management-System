@@ -28,6 +28,7 @@ const deliveryRouteRoutes = require('./routes/deliveryRouteRoutes');
 const productApprovalRoutes = require('./routes/productApprovalRoutes');
 const stockReceiveApprovalRoutes = require('./routes/stockReceiveApprovalRoutes');
 const manufacturerRoutes = require('./routes/manufacturerRoutes');
+const deliveryAreaRoutes = require('./routes/deliveryAreaRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -64,6 +65,7 @@ app.use('/api/delivery-routes', deliveryRouteRoutes);
 app.use('/api/product-approvals', productApprovalRoutes);
 app.use('/api/stock-receive-approvals', stockReceiveApprovalRoutes);
 app.use('/api/manufacturers', manufacturerRoutes);
+app.use('/api/delivery-areas', deliveryAreaRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

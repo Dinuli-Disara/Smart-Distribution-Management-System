@@ -12,13 +12,10 @@ export interface Employee {
   updated_at?: string;
   created_by?: number;
   updated_by?: number;
-  route_id?: number | null;
-  route?: {
-    route_id: number;
-    route_name: string;
-    area_id: number | null;
-    route_code?: string;
-    area?: string;
+  area_id?: number | null;
+  area?: {
+    area_id: number;
+    area_name: string;
   } | null;
 }
 
@@ -29,7 +26,7 @@ export interface CreateEmployeeData {
   role: 'Owner' | 'Clerk' | 'Sales Representative';
   username: string;
   password: string;
-  route_id?: number | null; 
+  area_id?: number | null; 
 }
 
 export interface UpdateEmployeeData {
@@ -37,7 +34,7 @@ export interface UpdateEmployeeData {
   email?: string;
   contact?: string;
   role?: 'Owner' | 'Clerk' | 'Sales Representative';
-  route_id?: number | null;
+  area_id?: number | null;
   is_active?: boolean;
 }
 

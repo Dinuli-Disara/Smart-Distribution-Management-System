@@ -1,3 +1,5 @@
+// frontend-web/src/pages/owner/EmployeesView.tsx
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -5,12 +7,12 @@ import { Button } from "../../components/ui/button";
 import { Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/form-components";
 import { UserPlus, AlertTriangle, Search, X, MapPin, Edit2 } from "lucide-react";
 import employeeService, { Employee } from "../../services/employeeService";
-import routeService, { DeliveryRoute } from "../../services/deliveryRouteService";
+import areaService, { DeliveryArea } from "../../services/areaService";
 
 export default function EmployeesView() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [routes, setRoutes] = useState<DeliveryRoute[]>([]);
-  const [allRoutes, setAllRoutes] = useState<DeliveryRoute[]>([]); // For editing (shows all routes)
+  const [areas, setAreas] = useState<DeliveryArea[]>([]); // Changed from routes to areas
+  const [allAreas, setAllAreas] = useState<DeliveryArea[]>([]); // For editing (shows all areas)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +36,7 @@ export default function EmployeesView() {
     role: 'Sales Representative' as 'Owner' | 'Clerk' | 'Sales Representative',
     email: '',
     contact: '',
-    route_id: ''
+    area_id: '' // Changed from route_id to area_id
   });
 
   // Edit form state
@@ -43,14 +45,14 @@ export default function EmployeesView() {
     email: '',
     contact: '',
     role: 'Sales Representative' as 'Owner' | 'Clerk' | 'Sales Representative',
-    route_id: ''
+    area_id: '' // Changed from route_id to area_id
   });
 
-  // Load employees and routes on mount
+  // Load employees and areas on mount
   useEffect(() => {
     loadEmployees();
-    loadAllRoutes();
-    loadUnassignedRoutes();
+    loadAllAreas();
+    loadUnassignedAreas(); // Changed from loadUnassignedRoutes
   }, []);
 
   const loadEmployees = async () => {
@@ -67,23 +69,23 @@ export default function EmployeesView() {
     }
   };
 
-  // Load all routes for editing
-  const loadAllRoutes = async () => {
+  // Load all areas for editing
+  const loadAllAreas = async () => {
     try {
-      const data = await routeService.getAllRoutes();
-      setAllRoutes(data);
+      const data = await areaService.getAllAreas(); // Changed from routeService
+      setAllAreas(data);
     } catch (err: any) {
-      console.error('Error loading all routes:', err);
+      console.error('Error loading all areas:', err);
     }
   };
 
-  // Load unassigned routes for dropdown
-  const loadUnassignedRoutes = async () => {
+  // Load unassigned areas for dropdown
+  const loadUnassignedAreas = async () => {
     try {
-      const data = await routeService.getUnassignedRoutes();
-      setRoutes(data);
+      const data = await areaService.getUnassignedAreas(); // Changed from routeService
+      setAreas(data);
     } catch (err: any) {
-      console.error('Error loading routes:', err);
+      console.error('Error loading areas:', err);
     }
   };
 
@@ -114,7 +116,7 @@ export default function EmployeesView() {
       email: employee.email,
       contact: employee.contact || '',
       role: employee.role,
-      route_id: employee.route_id?.toString() || ''
+      area_id: employee.area_id?.toString() || '' // Changed from route_id to area_id
     });
     setShowEditEmployee(true);
   };
@@ -140,17 +142,17 @@ export default function EmployeesView() {
         role: editEmployee.role
       };
 
-      // Only include route_id if role is Sales Representative
+      // Only include area_id if role is Sales Representative
       if (editEmployee.role === 'Sales Representative') {
-        updateData.route_id = editEmployee.route_id ? parseInt(editEmployee.route_id) : null;
+        updateData.area_id = editEmployee.area_id ? parseInt(editEmployee.area_id) : null; // Changed from route_id
       } else {
-        updateData.route_id = null;
+        updateData.area_id = null;
       }
 
       await employeeService.updateEmployee(selectedEmployee.employee_id, updateData);
 
       await loadEmployees();
-      await loadUnassignedRoutes(); // Refresh routes list
+      await loadUnassignedAreas(); // Refresh areas list
 
       setShowEditEmployee(false);
       setSelectedEmployee(null);
@@ -204,18 +206,18 @@ export default function EmployeesView() {
         return;
       }
 
-      // If role is Sales Representative and route is selected, include route_id
+      // If role is Sales Representative and area is selected, include area_id
       const employeeData = {
         ...newEmployee,
-        route_id: newEmployee.role === 'Sales Representative' && newEmployee.route_id
-          ? parseInt(newEmployee.route_id)
+        area_id: newEmployee.role === 'Sales Representative' && newEmployee.area_id // Changed from route_id
+          ? parseInt(newEmployee.area_id)
           : undefined
       };
 
       await employeeService.createEmployee(employeeData);
 
       await loadEmployees();
-      await loadUnassignedRoutes(); // Refresh routes list
+      await loadUnassignedAreas(); // Refresh areas list
 
       setShowAddEmployee(false);
       setNewEmployee({
@@ -225,7 +227,7 @@ export default function EmployeesView() {
         role: 'Sales Representative',
         email: '',
         contact: '',
-        route_id: ''
+        area_id: '' // Changed from route_id
       });
 
       console.log('Employee created successfully');
@@ -243,7 +245,7 @@ export default function EmployeesView() {
       role: 'Sales Representative',
       email: '',
       contact: '',
-      route_id: ''
+      area_id: '' // Changed from route_id
     });
     setError(null);
   };
@@ -334,7 +336,7 @@ export default function EmployeesView() {
                   <TableHead>Role</TableHead>
                   <TableHead>Contact No</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Assigned Route</TableHead>
+                  <TableHead>Assigned Area</TableHead> {/* Changed from "Assigned Route" */}
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -360,16 +362,15 @@ export default function EmployeesView() {
                       <TableCell>{employee.email}</TableCell>
                       <TableCell>
                         {employee.role === 'Sales Representative' ? (
-                          employee.route ? (
+                          employee.area_id ? (
                             <div className="flex items-center gap-1">
                               <MapPin className="w-4 h-4 text-blue-600" />
                               <span className="text-sm font-medium text-blue-900">
-                                {employee.route.route_name}
-                                {employee.route.route_code && ` (${employee.route.route_code})`}
+                                {allAreas.find(a => a.area_id === employee.area_id)?.area_name || 'Unknown Area'}
                               </span>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-500 italic">No route assigned</span>
+                            <span className="text-sm text-gray-500 italic">No area assigned</span>
                           )
                         ) : (
                           <span className="text-sm text-gray-400">—</span>
@@ -471,7 +472,7 @@ export default function EmployeesView() {
                   setEditEmployee({
                     ...editEmployee,
                     role,
-                    route_id: role === 'Sales Representative' ? editEmployee.route_id : ''
+                    area_id: role === 'Sales Representative' ? editEmployee.area_id : '' // Changed from route_id
                   });
                 }}
               >
@@ -480,37 +481,35 @@ export default function EmployeesView() {
               </select>
             </div>
 
-            {/* Conditional Route Selection - Only show for Sales Representative */}
+            {/* Conditional Area Selection - Only show for Sales Representative */}
             {editEmployee.role === 'Sales Representative' && (
               <div className="space-y-2">
-                <Label>Assign Route</Label>
+                <Label>Assign Area</Label> {/* Changed from "Assign Route" */}
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={editEmployee.route_id}
-                  onChange={(e) => setEditEmployee({ ...editEmployee, route_id: e.target.value })}
+                  value={editEmployee.area_id} // Changed from route_id
+                  onChange={(e) => setEditEmployee({ ...editEmployee, area_id: e.target.value })} // Changed from route_id
                 >
-                  <option value="">No route (unassign)</option>
-                  {allRoutes.map((route) => {
-                    // Check if route is assigned to someone else (if the data is available)
-                    const isAssignedToOther = route.assigned_to &&
-                      route.assigned_to !== selectedEmployee?.employee_id;
+                  <option value="">No area (unassign)</option>
+                  {allAreas.map((area) => { // Changed from allRoutes
+                    // Check if area is assigned to someone else
+                    const isAssignedToOther = area.assigned_to &&
+                      area.assigned_to?.employee_id !== selectedEmployee?.employee_id;
 
                     return (
                       <option
-                        key={route.route_id}
-                        value={route.route_id}
-                        disabled={!!isAssignedToOther} // Optionally disable if assigned to others
+                        key={area.area_id} // Changed from route_id
+                        value={area.area_id} // Changed from route_id
+                        disabled={!!isAssignedToOther}
                       >
-                        {route.route_name}
-                        {route.route_code && ` (${route.route_code})`}
-                        {route.area && ` - ${route.area}`}
+                        {area.area_name} {/* Changed from route_name */}
                         {isAssignedToOther && ` (Assigned to another rep)`}
                       </option>
                     );
                   })}
                 </select>
                 <p className="text-xs text-gray-500">
-                  Select a route to assign. Routes assigned to other reps are shown but disabled.
+                  Select a delivery area to assign. Areas assigned to other reps are shown but disabled.
                 </p>
               </div>
             )}
@@ -607,7 +606,7 @@ export default function EmployeesView() {
                   setNewEmployee({
                     ...newEmployee,
                     role,
-                    route_id: role === 'Sales Representative' ? newEmployee.route_id : ''
+                    area_id: role === 'Sales Representative' ? newEmployee.area_id : '' // Changed from route_id
                   });
                 }}
               >
@@ -616,30 +615,28 @@ export default function EmployeesView() {
               </select>
             </div>
 
-            {/* Conditional Route Selection - Only show for Sales Representative */}
+            {/* Conditional Area Selection - Only show for Sales Representative */}
             {newEmployee.role === 'Sales Representative' && (
               <div className="space-y-2">
-                <Label>Assign Route</Label>
+                <Label>Assign Area</Label> {/* Changed from "Assign Route" */}
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={newEmployee.route_id}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, route_id: e.target.value })}
+                  value={newEmployee.area_id} // Changed from route_id
+                  onChange={(e) => setNewEmployee({ ...newEmployee, area_id: e.target.value })} // Changed from route_id
                 >
-                  <option value="">Select a route (optional)</option>
-                  {routes.map((route) => (
-                    <option key={route.route_id} value={route.route_id}>
-                      {route.route_name}
-                      {route.route_code && ` (${route.route_code})`}
-                      {route.area && ` - ${route.area}`}
+                  <option value="">Select an area (optional)</option>
+                  {areas.map((area) => ( // Changed from routes
+                    <option key={area.area_id} value={area.area_id}> {/* Changed from route_id */}
+                      {area.area_name} {/* Changed from route_name */}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500">
-                  Only unassigned routes are shown. Routes can also be assigned later.
+                  Only unassigned areas are shown. Areas can also be assigned later.
                 </p>
-                {routes.length === 0 && (
+                {areas.length === 0 && (
                   <p className="text-xs text-amber-600">
-                    No unassigned routes available. Create routes first in Route Management.
+                    No unassigned areas available. Create areas first in Area Management.
                   </p>
                 )}
               </div>
@@ -664,7 +661,7 @@ export default function EmployeesView() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog (Keep existing) */}
+      {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>

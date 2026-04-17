@@ -13,10 +13,6 @@ const DeliveryArea = sequelize.define('DeliveryArea', {
     allowNull: false,
     unique: true
   },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

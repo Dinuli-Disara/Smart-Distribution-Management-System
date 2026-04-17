@@ -6,12 +6,19 @@ const { sequelize } = require('../config/database');
 // @access  Private
 exports.getAllProducts = async (req, res) => {
   try {
+    // First get all products with store stock and total stock
     const [products] = await sequelize.query(`
       SELECT 
-        p.*,
+        p.product_id,
+        p.product_name,
+        p.product_code,
+        p.product_description,
+        p.unit_price,
+        p.low_stock_threshold,
+        p.manufacturer_id,
+        p.is_active,
         m.name as manufacturer_name,
         COALESCE(SUM(CASE WHEN sl.location_type = 'STORE' THEN sb.quantity ELSE 0 END), 0) as store_stock,
-        COALESCE(SUM(CASE WHEN sl.location_type = 'VAN' THEN sb.quantity ELSE 0 END), 0) as van_stock,
         COALESCE(SUM(sb.quantity), 0) as total_stock,
         MIN(CASE WHEN sb.batch_status = 'ACTIVE' THEN sb.expiry_date END) as nearest_expiry
       FROM Product p
@@ -22,6 +29,39 @@ exports.getAllProducts = async (req, res) => {
       GROUP BY p.product_id
       ORDER BY p.product_name
     `);
+
+    // For each product, get van stock breakdown
+    for (const product of products) {
+      const [vanStocks] = await sequelize.query(`
+        SELECT 
+          sl.location_id,
+          sl.location_name,
+          COALESCE(SUM(sb.quantity), 0) as quantity
+        FROM Stock_Location sl
+        LEFT JOIN Stock_Batch sb ON sl.location_id = sb.location_id 
+          AND sb.product_id = ? 
+          AND sb.batch_status = 'ACTIVE'
+        WHERE sl.location_type = 'VAN'
+        GROUP BY sl.location_id, sl.location_name
+        HAVING quantity > 0
+        ORDER BY sl.location_name
+      `, {
+        replacements: [product.product_id]
+      });
+
+      // Add van stocks as an object
+      product.van_stocks = {};
+      vanStocks.forEach(van => {
+        product.van_stocks[van.location_name] = parseInt(van.quantity) || 0;
+      });
+
+      // Also add individual van stock fields for backward compatibility
+      // This will populate the hardcoded fields if you still have them in the frontend
+      vanStocks.forEach(van => {
+        const normalizedName = van.location_name.toLowerCase().replace(/\s+/g, '_');
+        product[`${normalizedName}_van_stock`] = parseInt(van.quantity) || 0;
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -63,25 +103,42 @@ exports.getProduct = async (req, res) => {
       });
     }
 
-    // Get batch details
+    // Get batch details with location information
     const [batches] = await sequelize.query(`
       SELECT 
         sb.*,
         sl.location_type,
-        sl.location_name
+        sl.location_name,
+        sl.van_id,
+        v.vehicle_number
       FROM Stock_Batch sb
       JOIN Stock_Location sl ON sb.location_id = sl.location_id
+      LEFT JOIN Van v ON sl.van_id = v.van_id
       WHERE sb.product_id = ? AND sb.batch_status = 'ACTIVE'
       ORDER BY sb.expiry_date ASC
     `, {
       replacements: [req.params.id]
     });
 
+    // Calculate stock by location
+    const stockByLocation = {};
+    batches.forEach(batch => {
+      const locationKey = batch.location_type === 'STORE' 
+        ? 'Store' 
+        : batch.location_name || batch.vehicle_number || 'Van';
+      
+      if (!stockByLocation[locationKey]) {
+        stockByLocation[locationKey] = 0;
+      }
+      stockByLocation[locationKey] += batch.quantity;
+    });
+
     res.status(200).json({
       success: true,
       data: {
         ...product[0],
-        batches
+        batches,
+        stock_by_location: stockByLocation
       }
     });
   } catch (error) {
@@ -100,9 +157,12 @@ exports.getLowStockProducts = async (req, res) => {
   try {
     const [products] = await sequelize.query(`
       SELECT 
-        p.*,
-        COALESCE(SUM(sb.quantity), 0) as total_stock,
-        p.low_stock_threshold
+        p.product_id,
+        p.product_name,
+        p.product_code,
+        p.unit_price,
+        p.low_stock_threshold,
+        COALESCE(SUM(sb.quantity), 0) as total_stock
       FROM Product p
       LEFT JOIN Stock_Batch sb ON p.product_id = sb.product_id AND sb.batch_status = 'ACTIVE'
       WHERE p.is_active = true

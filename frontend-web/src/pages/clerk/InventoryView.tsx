@@ -26,6 +26,7 @@ interface Product {
   total_stock: number;
   low_stock_threshold: number;
   nearest_expiry: string;
+  van_stocks: Record<string, number>;
 }
 
 interface Van {
@@ -258,19 +259,38 @@ export default function InventoryView() {
   };
 
   const transformInventoryData = (apiData: any[]): Product[] => {
-    return apiData.map(item => ({
-      product_id: item.product_id,
-      product_name: item.product_name,
-      product_code: item.product_code || '-',
-      unit_price: item.unit_price,
-      store_stock: item.store_stock || 0,
-      kiribathgoda_van_stock: 0,
-      battaramulla_van_stock: 0,
-      homagama_van_stock: 0,
-      total_stock: item.total_stock || 0,
-      low_stock_threshold: item.low_stock_threshold || 10,
-      nearest_expiry: item.nearest_expiry || ''
-    }));
+    return apiData.map(item => {
+      // Use van_stocks object if available, otherwise create from individual fields
+      const vanStocks: Record<string, number> = {};
+
+      if (item.van_stocks) {
+        Object.assign(vanStocks, item.van_stocks);
+      } else {
+        // Fallback: check for individual van stock fields
+        const knownVanLocations = ['Kiribathgoda', 'Battaramulla', 'Homagama'];
+        knownVanLocations.forEach(location => {
+          const fieldName = `${location.toLowerCase()}_van_stock`;
+          if (item[fieldName] !== undefined) {
+            vanStocks[location] = item[fieldName] || 0;
+          }
+        });
+      }
+
+      return {
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_code: item.product_code || '-',
+        unit_price: item.unit_price,
+        store_stock: item.store_stock || 0,
+        kiribathgoda_van_stock: vanStocks['Kiribathgoda'] || vanStocks['Kiribathgoda Van'] || 0,
+        battaramulla_van_stock: vanStocks['Battaramulla'] || vanStocks['Battaramulla Van'] || 0,
+        homagama_van_stock: vanStocks['Homagama'] || vanStocks['Homagama Van'] || 0,
+        total_stock: item.total_stock || 0,
+        low_stock_threshold: item.low_stock_threshold || 10,
+        nearest_expiry: item.nearest_expiry || '',
+        van_stocks: vanStocks  // Keep the full object for dynamic columns
+      };
+    });
   };
 
   const handleAddReceiveItem = () => {

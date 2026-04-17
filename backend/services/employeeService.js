@@ -1,13 +1,11 @@
-// backend/services/employeeService.js
 const Employee = require('../models/Employee');
-const DeliveryRoute = require('../models/DeliveryRoute');
+const DeliveryArea = require('../models/DeliveryArea');
 const { Op } = require('sequelize');
 
 class EmployeeService {
   // Get all employees
   async getAllEmployees(filters = {}) {
     const where = {};
-    const DeliveryRoute = require('../models/DeliveryRoute');
 
     // Filter by role
     if (filters.role) {
@@ -32,9 +30,10 @@ class EmployeeService {
       where,
       include: [
         {
-          model: require('../models/DeliveryArea'),
+          model: DeliveryArea,
           as: 'area',
-          attributes: ['area_id', 'area_name']
+          attributes: ['area_id', 'area_name'],
+          required: false
         }
       ],
       order: [['created_at', 'DESC']],
@@ -51,7 +50,8 @@ class EmployeeService {
         {
           model: DeliveryArea,
           as: 'area',
-          attributes: ['area_id', 'area_name']
+          attributes: ['area_id', 'area_name'],
+          required: false
         }
       ],
       attributes: { exclude: ['password'] }
@@ -64,12 +64,53 @@ class EmployeeService {
     return employee;
   }
 
+  // Create new employee
+  async createEmployee(data, createdBy) {
+    // Check if username already exists
+    const existingUsername = await Employee.findOne({
+      where: { username: data.username }
+    });
+
+    if (existingUsername) {
+      throw new Error('Username already exists');
+    }
+
+    // Check if email already exists
+    const existingEmail = await Employee.findOne({
+      where: { email: data.email }
+    });
+
+    if (existingEmail) {
+      throw new Error('Email already exists');
+    }
+
+    // If role is Sales Representative and area_id is provided, check if area is available
+    if (data.role === 'Sales Representative' && data.area_id) {
+      const existingAssignment = await Employee.findOne({
+        where: {
+          area_id: data.area_id,
+          role: 'Sales Representative',
+          is_active: true
+        }
+      });
+
+      if (existingAssignment) {
+        throw new Error('This area is already assigned to another sales representative');
+      }
+    }
+
+    const employee = await Employee.create({
+      ...data,
+      created_by: createdBy,
+      updated_by: createdBy
+    });
+
+    return await this.getEmployeeById(employee.employee_id);
+  }
+
   // Update employee
   async updateEmployee(id, data, updatedBy) {
-    console.log('EmployeeService.updateEmployee called with:', { id, data, updatedBy });
-
     const employee = await Employee.findByPk(id);
-    console.log('Found employee:', employee ? employee.toJSON() : null);
 
     if (!employee) {
       throw new Error('Employee not found');
@@ -77,7 +118,6 @@ class EmployeeService {
 
     // Check if username is being changed and already exists
     if (data.username && data.username !== employee.username) {
-      console.log('Checking username uniqueness:', data.username);
       const existingUsername = await Employee.findOne({
         where: {
           username: data.username,
@@ -92,7 +132,6 @@ class EmployeeService {
 
     // Check if email is being changed and already exists
     if (data.email && data.email !== employee.email) {
-      console.log('Checking email uniqueness:', data.email);
       const existingEmail = await Employee.findOne({
         where: {
           email: data.email,
@@ -126,10 +165,10 @@ class EmployeeService {
       }
     }
 
-    // Update fields - INCLUDE ALL FIELDS FROM data
+    // Update fields
     const updateData = {
       updated_by: updatedBy,
-      ...data // This will include all fields from data
+      ...data
     };
 
     // Remove any fields that shouldn't be updated directly
@@ -137,32 +176,16 @@ class EmployeeService {
     delete updateData.created_by;
     delete updateData.created_at;
     delete updateData.updated_at;
-    delete updateData.password; // Password should be changed through separate endpoint
+    delete updateData.password;
     delete updateData.password_reset_token;
     delete updateData.password_reset_expires;
 
-    console.log('Updating with data:', updateData);
-
     await employee.update(updateData);
 
-    // Fetch fresh data with route info
-    const DeliveryRoute = require('../models/DeliveryRoute');
-    const updatedEmployee = await Employee.findByPk(id, {
-      include: [
-        {
-          model: DeliveryRoute,
-          as: 'route',
-          attributes: ['route_id', 'route_name', 'area_id']
-        }
-      ],
-      attributes: { exclude: ['password'] }
-    });
-
-    console.log('Updated employee:', updatedEmployee.toJSON());
-    return updatedEmployee.toJSON();
+    return await this.getEmployeeById(id);
   }
 
-  // Soft delete (deactivate) employee
+  // Deactivate employee
   async deactivateEmployee(id, updatedBy) {
     const employee = await Employee.findByPk(id);
 
@@ -175,7 +198,7 @@ class EmployeeService {
       updated_by: updatedBy
     });
 
-    return employee.toJSON();
+    return await this.getEmployeeById(id);
   }
 
   // Activate employee
@@ -191,7 +214,7 @@ class EmployeeService {
       updated_by: updatedBy
     });
 
-    return employee.toJSON();
+    return await this.getEmployeeById(id);
   }
 
   // Get employee statistics
