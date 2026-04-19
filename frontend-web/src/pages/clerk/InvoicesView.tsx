@@ -1,14 +1,14 @@
-// frontend-web/src/pages/clerk/InvoicesView.tsx
+// frontend-web/src/pages/clerk/RoutesView.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 
-export default function InvoicesView() {
+export default function RoutesView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invoice Management</CardTitle>
+        <CardTitle>Route Management</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-gray-600">Invoice management interface coming soon...</p>
+        <p className="text-gray-600">Route management interface coming soon...</p>
       </CardContent>
     </Card>
   );

@@ -71,6 +71,7 @@ interface Customer {
   contact: string;
 }
 
+
 const Dashboard: React.FC<Props> = ({ navigation }) => {
   const { user, logout, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
@@ -111,6 +112,21 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
     pending: todayVisits.filter(v => v.status === 'Pending').length,
     totalSales: todayVisits.reduce((sum, v) => sum + v.amount, 0),
   };
+
+  const [newCustomerData, setNewCustomerData] = useState({
+    name: '',
+    shop_name: '',
+    email: '',
+    contact: '',
+    address: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
+    route_id: '', // Add route selection
+  });
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [deliveryRoutes, setDeliveryRoutes] = useState<Array<{ route_id: number, route_name: string, area_name?: string }>>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
 
   // Load profile data
   const loadProfile = async () => {
@@ -163,6 +179,38 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+  // Load delivery routes for customer assignment
+  // Load delivery routes for customer assignment
+  const loadDeliveryRoutes = async () => {
+    try {
+      setLoadingRoutes(true);
+      const response: any = await api.get('/delivery-routes');
+      console.log('Delivery routes response:', response); // Debug log
+
+      if (response.success && response.data && response.data.length > 0) {
+        setDeliveryRoutes(response.data);
+      } else {
+        console.log('No routes from API, using defaults');
+        // Fallback to default routes if API returns empty
+        setDeliveryRoutes([
+          { route_id: 1, route_name: 'Colombo Central', area_name: 'Colombo' },
+          { route_id: 2, route_name: 'Kandy Route', area_name: 'Kandy' },
+          { route_id: 3, route_name: 'Galle Route', area_name: 'Galle' },
+        ]);
+      }
+    } catch (error: any) {
+      console.error('Load delivery routes error:', error);
+      // Set default routes on error so the modal still works
+      setDeliveryRoutes([
+        { route_id: 1, route_name: 'Colombo Central', area_name: 'Colombo' },
+        { route_id: 2, route_name: 'Kandy Route', area_name: 'Kandy' },
+        { route_id: 3, route_name: 'Galle Route', area_name: 'Galle' },
+      ]);
+    } finally {
+      setLoadingRoutes(false);
+    }
+  };
+
   // Load all data
   const loadAllData = async () => {
     setRefreshing(true);
@@ -171,6 +219,7 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
         loadVanStock(),
         loadPreOrders(),
         loadCustomers(),
+        loadDeliveryRoutes(),
       ]);
     } catch (error) {
       console.error('Load data error:', error);
@@ -258,8 +307,134 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
     setActiveForm('order');
   };
 
-  const handleNewCustomer = () => {
+  // Function to open the new customer modal
+  const handleOpenNewCustomer = () => {
+    // Reset form data
+    setNewCustomerData({
+      name: '',
+      shop_name: '',
+      email: '',
+      contact: '',
+      address: '',
+      username: '',
+      password: '',
+      confirmPassword: '',
+      route_id: '',
+    });
+    // Open the modal
     setActiveForm('customer');
+  };
+
+  // Function to submit the customer creation
+  const handleSubmitCustomer = async () => {
+    // Validation
+    if (!newCustomerData.name) {
+      Alert.alert('Error', 'Please enter customer/contact person name');
+      return;
+    }
+
+    if (!newCustomerData.shop_name) {
+      Alert.alert('Error', 'Please enter shop name');
+      return;
+    }
+
+    if (!newCustomerData.contact) {
+      Alert.alert('Error', 'Please enter contact number');
+      return;
+    }
+
+    if (!newCustomerData.route_id) {
+      Alert.alert('Error', 'Please select a delivery route');
+      return;
+    }
+
+    if (!newCustomerData.username) {
+      Alert.alert('Error', 'Please enter a username');
+      return;
+    }
+
+    if (!newCustomerData.password) {
+      Alert.alert('Error', 'Please enter a password');
+      return;
+    }
+
+    if (newCustomerData.password !== newCustomerData.confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (newCustomerData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
+    // Optional email validation (only if provided)
+    if (newCustomerData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCustomerData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address or leave empty');
+      return;
+    }
+
+    setCreatingCustomer(true);
+    try {
+      const customerPayload = {
+        name: newCustomerData.name,
+        shop_name: newCustomerData.shop_name,
+        email: newCustomerData.email || null,
+        contact: newCustomerData.contact,
+        address: newCustomerData.address || null,
+        username: newCustomerData.username,
+        password: newCustomerData.password,
+        route_id: parseInt(newCustomerData.route_id),
+      };
+
+      console.log('Creating customer with payload:', JSON.stringify(customerPayload, null, 2));
+
+      const response: any = await api.post('/customers', customerPayload);
+
+      console.log('Server response:', response);
+
+      if (response.success) {
+        // Reset form
+        setNewCustomerData({
+          name: '',
+          shop_name: '',
+          email: '',
+          contact: '',
+          address: '',
+          username: '',
+          password: '',
+          confirmPassword: '',
+          route_id: '',
+        });
+
+        // Close modal
+        setActiveForm(null);
+
+        // Show success message
+        setSuccessMessage('Customer created successfully! They can now log in with their credentials.');
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+
+        // Refresh customer list
+        await loadCustomers();
+      } else {
+        Alert.alert('Error', response.message || 'Failed to create customer');
+      }
+    } catch (error: any) {
+      console.error('Create customer error:', error);
+
+      // Better error message handling
+      let errorMessage = 'Failed to create customer';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setCreatingCustomer(false);
+    }
   };
 
   const handleAddOrderProduct = () => {
@@ -439,7 +614,7 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
           </View>
           <Text style={styles.quickActionText}>Place Order</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickActionButton} onPress={handleNewCustomer}>
+        <TouchableOpacity style={styles.quickActionButton} onPress={handleOpenNewCustomer}>
           <View style={[styles.quickActionIcon, { backgroundColor: '#DB2777' }]}>
             <UserPlus size={24} color="#FFFFFF" />
           </View>
@@ -489,6 +664,216 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
         </View>
       </View>
     </ScrollView>
+  );
+
+  // ==================== NEW CUSTOMER MODAL ====================
+  const renderNewCustomerModal = () => (
+    <Modal
+      visible={activeForm === 'customer'}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => {
+        setActiveForm(null);
+        setNewCustomerData({
+          name: '',
+          shop_name: '',
+          email: '',
+          contact: '',
+          address: '',
+          username: '',
+          password: '',
+          confirmPassword: '',
+          route_id: '',
+        });
+      }}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Register New Customer</Text>
+            <TouchableOpacity onPress={() => setActiveForm(null)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            {/* Shop Name - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Shop Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter shop name"
+                value={newCustomerData.shop_name}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, shop_name: text })}
+              />
+            </View>
+
+            {/* Owner/Contact Person Name - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Contact Person Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter owner/contact name"
+                value={newCustomerData.name}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, name: text })}
+              />
+            </View>
+
+            {/* Contact Number - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Contact Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+94 XX XXX XXXX"
+                keyboardType="phone-pad"
+                value={newCustomerData.contact}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, contact: text })}
+              />
+            </View>
+
+            {/* Email - Optional */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Email (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="customer@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={newCustomerData.email}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, email: text })}
+              />
+              <Text style={styles.helperText}>Optional - leave empty if no email</Text>
+            </View>
+
+            {/* Address - Optional */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Address (Optional)</Text>
+              <TextInput
+                style={[styles.input, { minHeight: 80 }]}
+                placeholder="Enter shop address"
+                multiline
+                numberOfLines={3}
+                value={newCustomerData.address}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, address: text })}
+              />
+            </View>
+
+            {/* Delivery Route - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Delivery Route *</Text>
+              {loadingRoutes ? (
+                <ActivityIndicator size="small" color="#1E3EA6" />
+              ) : (
+                <View style={styles.selectContainer}>
+                  <TouchableOpacity
+                    style={styles.selectButton}
+                    onPress={() => {
+                      Alert.alert(
+                        'Select Route',
+                        deliveryRoutes.map(r => `${r.route_name}${r.area_name ? ` (${r.area_name})` : ''}`).join('\n'),
+                        [
+                          ...deliveryRoutes.map(route => ({
+                            text: `${route.route_name}${route.area_name ? ` (${route.area_name})` : ''}`,
+                            onPress: () => setNewCustomerData({ ...newCustomerData, route_id: route.route_id.toString() })
+                          })),
+                          { text: 'Cancel', style: 'cancel' }
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={[
+                      styles.selectButtonText,
+                      !newCustomerData.route_id && styles.selectButtonPlaceholder
+                    ]}>
+                      {newCustomerData.route_id
+                        ? deliveryRoutes.find(r => r.route_id === parseInt(newCustomerData.route_id))?.route_name || 'Select route'
+                        : 'Select delivery route'}
+                    </Text>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <Text style={styles.helperText}>Select the delivery route for this customer</Text>
+            </View>
+
+            <View style={styles.dividerLine} />
+
+            {/* Login Credentials Section */}
+            <Text style={styles.sectionTitle}>Login Credentials</Text>
+
+            {/* Username - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Username *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Choose a username"
+                autoCapitalize="none"
+                value={newCustomerData.username}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, username: text })}
+              />
+              <Text style={styles.helperText}>Must be unique</Text>
+            </View>
+
+            {/* Password - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Password *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Choose a password (min 6 characters)"
+                secureTextEntry
+                value={newCustomerData.password}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, password: text })}
+              />
+            </View>
+
+            {/* Confirm Password - Required */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Confirm Password *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm password"
+                secureTextEntry
+                value={newCustomerData.confirmPassword}
+                onChangeText={(text) => setNewCustomerData({ ...newCustomerData, confirmPassword: text })}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.confirmButton, { flex: 1 }]}
+                onPress={handleSubmitCustomer}
+                disabled={creatingCustomer}
+              >
+                {creatingCustomer ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Register Customer</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelButton, { flex: 1 }]}
+                onPress={() => {
+                  setActiveForm(null);
+                  setNewCustomerData({
+                    name: '',
+                    shop_name: '',
+                    email: '',
+                    contact: '',
+                    address: '',
+                    username: '',
+                    password: '',
+                    confirmPassword: '',
+                    route_id: '',
+                  });
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 
   // ==================== PROFILE TAB (CORRECTED) ====================
@@ -810,6 +1195,7 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
         {renderTabContent()}
       </ScrollView>
       {renderBottomNav()}
+      {renderNewCustomerModal()}
 
       {/* Success Modal */}
       <Modal visible={showSuccess} transparent animationType="fade">
@@ -933,6 +1319,8 @@ const styles = StyleSheet.create({
   modalBody: { padding: 20 },
   confirmButton: { backgroundColor: '#1E3EA6', borderRadius: 8, padding: 16, alignItems: 'center' },
   confirmButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  cancelButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 16, alignItems: 'center' },
+  cancelButtonText: { color: '#374151', fontSize: 16, fontWeight: '600' },
 
   // Empty State
   emptyState: { alignItems: 'center', padding: 40 },
@@ -950,6 +1338,53 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+
+  // Add these to your StyleSheet
+  selectContainer: {
+    marginBottom: 8,
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 12,
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#111827',
+    flex: 1,
+  },
+  selectButtonPlaceholder: {
+    color: '#9CA3AF',
+  },
+
+  // Modal Actions
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+
+  // Divider Line
+  dividerLine: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 16,
+  },
+
+  // Section Title
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+
 });
 
 export default Dashboard;

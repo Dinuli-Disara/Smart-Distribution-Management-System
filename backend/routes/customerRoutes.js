@@ -32,6 +32,6 @@ router.put('/:id', updateCustomer);
 // Customer-specific routes
 router.get('/:id/orders', getCustomerOrders);
 router.get('/:id/payments', getCustomerPayments);
-router.put('/:id/loyalty', authorize('Owner', 'Clerk'), updateLoyaltyPoints);
+router.put('/:id/loyalty', authorize, updateLoyaltyPoints);
 
 module.exports = router;

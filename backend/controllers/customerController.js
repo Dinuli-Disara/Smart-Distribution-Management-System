@@ -55,7 +55,18 @@ exports.getCustomer = async (req, res) => {
 // @access  Private (Sales Rep, Clerk, Owner)
 exports.createCustomer = async (req, res) => {
   try {
-    const { name, contact, email, address, route_id } = req.body;
+    const { 
+      name, 
+      contact, 
+      email, 
+      address, 
+      route_id,
+      username,
+      password,
+      shop_name 
+    } = req.body;
+
+    console.log('Received customer data:', req.body); // Debug log
 
     // Validation
     if (!name) {
@@ -65,7 +76,47 @@ exports.createCustomer = async (req, res) => {
       });
     }
 
-    const customer = await customerService.createCustomer(req.body);
+    if (!contact) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contact number is required'
+      });
+    }
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required'
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Prepare customer data
+    const customerData = {
+      name,
+      contact,
+      email: email || null,
+      address: address || null,
+      route_id: route_id || 1,
+      username,
+      password,
+      shop_name: shop_name || name
+    };
+
+    const customer = await customerService.createCustomer(customerData);
 
     res.status(201).json({
       success: true,
@@ -73,10 +124,10 @@ exports.createCustomer = async (req, res) => {
       data: customer
     });
   } catch (error) {
-    console.error('Create customer error:', error);
+    console.error('Create customer error details:', error); // Better error logging
     res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message || 'Failed to create customer'
     });
   }
 };
