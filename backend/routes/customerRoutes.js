@@ -24,9 +24,10 @@ router.route('/')
   .get(getAllCustomers)
   .post(authorize('Owner', 'Clerk', 'Sales Representative'), createCustomer);
 
-router.route('/:id')
-  .get(getCustomer)
-  .put(authorize('Owner', 'Clerk', 'Sales Representative'), updateCustomer);
+router.get('/:id', getCustomer);
+
+// Update customer - Owner/Clerk/SalesRep can update any, customers can update their own
+router.put('/:id', updateCustomer);
 
 // Customer-specific routes
 router.get('/:id/orders', getCustomerOrders);

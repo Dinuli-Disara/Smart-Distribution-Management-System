@@ -6,17 +6,17 @@ class CustomerService {
   // Get all customers
   async getAllCustomers(filters = {}) {
     const where = {};
-    
+
     // Filter by route
     if (filters.route_id) {
       where.route_id = filters.route_id;
     }
-    
+
     // Filter by loyalty level
     if (filters.loyalty_level_id) {
       where.loyalty_level_id = filters.loyalty_level_id;
     }
-    
+
     // Search by name, contact, or email
     if (filters.search) {
       where[Op.or] = [
@@ -57,15 +57,15 @@ class CustomerService {
   // Helper to build WHERE clause
   buildWhereClause(where) {
     const conditions = [];
-    
+
     if (where.route_id) {
       conditions.push(`c.route_id = ${where.route_id}`);
     }
-    
+
     if (where.loyalty_level_id) {
       conditions.push(`c.loyalty_level_id = ${where.loyalty_level_id}`);
     }
-    
+
     if (where[Op.or]) {
       const searchConditions = where[Op.or].map(condition => {
         const field = Object.keys(condition)[0];
@@ -74,7 +74,7 @@ class CustomerService {
       }).join(' OR ');
       conditions.push(`(${searchConditions})`);
     }
-    
+
     return conditions.join(' AND ');
   }
 
@@ -175,8 +175,8 @@ class CustomerService {
     // Check if contact is being changed and already exists
     if (data.contact && data.contact !== customer.contact) {
       const [existing] = await sequelize.query(`
-        SELECT customer_id FROM Customer WHERE contact = ? AND customer_id != ?
-      `, {
+      SELECT customer_id FROM Customer WHERE contact = ? AND customer_id != ?
+    `, {
         replacements: [data.contact, id]
       });
 
@@ -185,11 +185,24 @@ class CustomerService {
       }
     }
 
-    // Build update query
+    // Check if email is being changed and already exists
+    if (data.email && data.email !== customer.email) {
+      const [existing] = await sequelize.query(`
+      SELECT customer_id FROM Customer WHERE email = ? AND customer_id != ?
+    `, {
+        replacements: [data.email, id]
+      });
+
+      if (existing.length > 0) {
+        throw new Error('Email already exists');
+      }
+    }
+
+    // Build update query - ADD shop_name to the list
     const updates = [];
     const values = [];
 
-    if (data.name) {
+    if (data.name !== undefined) {
       updates.push('name = ?');
       values.push(data.name);
     }
@@ -205,9 +218,17 @@ class CustomerService {
       updates.push('address = ?');
       values.push(data.address);
     }
+    if (data.shop_name !== undefined) {
+      updates.push('shop_name = ?');
+      values.push(data.shop_name);
+    }
     if (data.route_id !== undefined) {
       updates.push('route_id = ?');
       values.push(data.route_id);
+    }
+    if (data.city !== undefined) {
+      updates.push('city = ?');
+      values.push(data.city);
     }
 
     if (updates.length === 0) {
@@ -216,11 +237,13 @@ class CustomerService {
 
     values.push(id);
 
+    console.log('Updating customer with:', { updates, values });
+
     await sequelize.query(`
-      UPDATE Customer 
-      SET ${updates.join(', ')}, modified_at = NOW()
-      WHERE customer_id = ?
-    `, {
+    UPDATE Customer 
+    SET ${updates.join(', ')}, modified_at = NOW()
+    WHERE customer_id = ?
+  `, {
       replacements: values
     });
 

@@ -83,10 +83,36 @@ exports.createCustomer = async (req, res) => {
 
 // @desc    Update customer
 // @route   PUT /api/customers/:id
-// @access  Private
+// @access  Private (Customer can update own profile, Owner/Clerk/SalesRep can update any)
 exports.updateCustomer = async (req, res) => {
   try {
-    const customer = await customerService.updateCustomer(req.params.id, req.body);
+    const customerId = req.params.id;
+    
+    // Check authorization
+    const isOwnerOrStaff = ['Owner', 'Clerk', 'Sales Representative'].includes(req.user.role);
+    const isOwnProfile = req.user.type === 'customer' && req.user.id == customerId;
+    
+    if (!isOwnerOrStaff && !isOwnProfile) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this profile'
+      });
+    }
+    
+    // Customers can only update limited fields
+    let updateData = { ...req.body };
+    if (req.user.type === 'customer') {
+      // Customers can only update these fields
+      const allowedFields = ['name', 'email', 'contact', 'address', 'shop_name'];
+      updateData = {};
+      allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      });
+    }
+    
+    const customer = await customerService.updateCustomer(customerId, updateData);
 
     res.status(200).json({
       success: true,
