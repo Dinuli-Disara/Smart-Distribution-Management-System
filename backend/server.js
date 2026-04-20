@@ -32,6 +32,7 @@ const deliveryAreaRoutes = require('./routes/deliveryAreaRoutes');
 const preOrderRoutes = require('./routes/preOrderRoutes');
 const loyaltyLevelRoutes = require('./routes/loyaltyLevelRoutes');
 const vanStockRoutes = require('./routes/vanStockRoutes');
+const routePlanRoutes = require('./routes/routePlanRoutes');
 
 // Test route to verify server is working
 app.get('/', (req, res) => {
@@ -72,6 +73,7 @@ app.use('/api/delivery-areas', deliveryAreaRoutes);
 app.use('/api/pre-orders', preOrderRoutes);
 app.use('/api/loyalty-levels', loyaltyLevelRoutes);
 app.use('/api/van-stock', vanStockRoutes);
+app.use('/api/route-plans', routePlanRoutes);
 
 // 404 handler
 app.use((req, res, next) => {

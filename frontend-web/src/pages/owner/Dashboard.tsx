@@ -6,6 +6,7 @@ import EmployeesView from "./EmployeesView";
 import InventoryView from "./InventoryView";
 import VansRoutesView from "./VanRoutesView";
 import { ReportsView } from "./ReportsView";
+import RouteApprovals from "./VanRoutesView";
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -19,7 +20,7 @@ const views = {
   dashboard: DashboardView,
   employees: EmployeesView,
   inventory: InventoryView,
-  vans: VansRoutesView,
+  vans: RouteApprovals,
   reports: () => <ReportsView onNavigate={() => {}} />,
 };
 
