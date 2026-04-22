@@ -5,22 +5,19 @@ import { DeliveryScheduleCard } from "../../components/common/DeliveryScheduleCa
 import { DollarSign, TrendingUp, Truck } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-// TODO: Replace with API calls
 const salesData = [
-  { month: 'Jan', sales: 12500, revenue: 1200000 },
-  { month: 'Feb', sales: 13920, revenue: 1300000 },
-  { month: 'Mar', sales: 13280, revenue: 1250000 },
-  { month: 'Apr', sales: 16910, revenue: 1525000 },
-  { month: 'May', sales: 15050, revenue: 1375000 },
-  { month: 'Jun', sales: 17670, revenue: 1675000 },
+  { month: 'Jan', sales: 125000, revenue: 12000 },
+  { month: 'Feb', sales: 139200, revenue: 13000 },
+  { month: 'Mar', sales: 132800, revenue: 12500 },
+  { month: 'Apr', sales: 109100, revenue: 10250 },
 ];
 
 const topCustomers = [
-  { name: 'ABC Retail', sales: 550000 },
-  { name: 'XYZ Store', sales: 480000 },
-  { name: 'Best Shop', sales: 390000 },
-  { name: 'Quick Mart', sales: 380000 },
-  { name: 'Super Store', sales: 350000 },
+  { name: 'ABC Retail', sales: 55000 },
+  { name: 'XYZ Store', sales: 48000 },
+  { name: 'Best Shop', sales: 39000 },
+  { name: 'Quick Mart', sales: 38000 },
+  { name: 'Super Store', sales: 35000 },
 ];
 
 const productPerformance = [
@@ -33,9 +30,9 @@ const productPerformance = [
 
 // Delivery schedule data
 const todaysDeliveries = [
-  { area: "Kiribathgoda", route: "Dalugama" },
-  { area: "Battaramulla", route: "Koswatta" },
-  { area: "Homagama", route: "Nugegoda" },
+  { area: "Kiribathgoda", route: "Kiribathgoda 1" },
+  { area: "Battaramulla", route: "Battaramulla 1" },
+  { area: "Homagama", route: "Homagama 1" },
 ];
 
 export default function DashboardView() {
@@ -45,21 +42,21 @@ export default function DashboardView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="space-y-6">
           <KPICard
-            title="This Month Sales"
-            value="LKR 1,675,000"
+            title="This Month Revenue"
+            value="LKR 10,250"
             icon={DollarSign}
-            trend={{ value: "12.5%", isPositive: true }}
+            trend={{ value: "4.5%", isPositive: false }}
             iconColor="bg-green-100 text-green-600"
           />
           <KPICard
-            title="Monthly Revenue"
-            value="LKR 1,675,000"
+            title="Monthly Sale"
+            value="LKR 109,100"
             icon={TrendingUp}
-            trend={{ value: "8.2%", isPositive: true }}
+            trend={{ value: "8.2%", isPositive: false }}
             iconColor="bg-blue-100 text-blue-600"
           />
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2"> 
           <DeliveryScheduleCard
             title="Today's Delivery Schedule"
             deliveries={todaysDeliveries}

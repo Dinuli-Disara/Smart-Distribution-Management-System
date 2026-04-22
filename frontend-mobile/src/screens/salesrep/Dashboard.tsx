@@ -1174,6 +1174,183 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
     </ScrollView>
   );
 
+  // ==================== ORDER MODAL ====================
+  const renderOrderModal = () => (
+    <Modal
+      visible={activeForm === 'order'}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setActiveForm(null)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Place Order</Text>
+            <TouchableOpacity onPress={() => setActiveForm(null)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* Customer Selection */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Select Customer *</Text>
+              <TouchableOpacity
+                style={styles.selectButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Select Customer',
+                    customers.map(c => `${c.name} - ${c.shop_name}`).join('\n'),
+                    [
+                      ...customers.map(customer => ({
+                        text: `${customer.name} - ${customer.shop_name}`,
+                        onPress: () => setSelectedCustomer(customer)
+                      })),
+                      { text: 'Cancel', style: 'cancel' }
+                    ]
+                  );
+                }}
+              >
+                <Text style={selectedCustomer ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                  {selectedCustomer ? `${selectedCustomer.name} - ${selectedCustomer.shop_name}` : 'Choose a customer'}
+                </Text>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Products Section */}
+            <Text style={styles.sectionTitle}>Products</Text>
+
+            {orderProducts.map((item, index) => (
+              <View key={item.id} style={styles.orderProductCard}>
+                <View style={styles.orderProductHeader}>
+                  <Text style={styles.orderProductTitle}>Product {index + 1}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveOrderProduct(item.id)}>
+                    <Trash2 size={20} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Product Selection */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Product</Text>
+                  <TouchableOpacity
+                    style={styles.selectButton}
+                    onPress={() => {
+                      Alert.alert(
+                        'Select Product',
+                        vanStock.map(p => `${p.product_name} - Rs ${p.unit_price}`).join('\n'),
+                        [
+                          ...vanStock.map(product => ({
+                            text: `${product.product_name} - Rs ${product.unit_price}`,
+                            onPress: () => {
+                              const updatedProducts = [...orderProducts];
+                              updatedProducts[index] = {
+                                ...updatedProducts[index],
+                                product_id: product.product_id,
+                                product: product.product_name,
+                                price: product.unit_price
+                              };
+                              setOrderProducts(updatedProducts);
+                            }
+                          })),
+                          { text: 'Cancel', style: 'cancel' }
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={item.product ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                      {item.product || 'Select a product'}
+                    </Text>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Quantity */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Quantity</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter quantity"
+                    keyboardType="numeric"
+                    value={item.qty.toString()}
+                    onChangeText={(text) => {
+                      const qty = parseInt(text) || 0;
+                      const updatedProducts = [...orderProducts];
+                      updatedProducts[index] = { ...updatedProducts[index], qty };
+                      setOrderProducts(updatedProducts);
+                    }}
+                  />
+                </View>
+
+                {/* Price Display */}
+                {item.price > 0 && item.qty > 0 && (
+                  <View style={styles.orderProductTotal}>
+                    <Text style={styles.label}>Subtotal:</Text>
+                    <Text style={styles.orderTotalAmount}>Rs {(item.price * item.qty).toLocaleString()}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {/* Add Product Button */}
+            <TouchableOpacity
+              style={styles.addProductButton}
+              onPress={handleAddOrderProduct}
+            >
+              <Plus size={20} color="#1E3EA6" />
+              <Text style={styles.addProductButtonText}>Add Product</Text>
+            </TouchableOpacity>
+
+            {/* Order Summary */}
+            {orderProducts.length > 0 && (
+              <View style={styles.orderSummary}>
+                <Text style={styles.orderSummaryTitle}>Order Summary</Text>
+                <View style={styles.orderSummaryRow}>
+                  <Text>Subtotal:</Text>
+                  <Text>Rs {orderProducts.reduce((sum, p) => sum + (p.price * p.qty), 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.orderSummaryRow}>
+                  <Text>Discount (Loyalty):</Text>
+                  <Text>0%</Text>
+                </View>
+                <View style={[styles.orderSummaryRow, styles.orderSummaryTotal]}>
+                  <Text style={styles.orderSummaryTotalText}>Total:</Text>
+                  <Text style={styles.orderSummaryTotalAmount}>
+                    Rs {orderProducts.reduce((sum, p) => sum + (p.price * p.qty), 0).toLocaleString()}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.confirmButton, { flex: 1 }]}
+                onPress={handleConfirmOrder}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Place Order</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelButton, { flex: 1 }]}
+                onPress={() => {
+                  setActiveForm(null);
+                  setOrderProducts([]);
+                  setSelectedCustomer(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
   // ==================== MAIN RENDER ====================
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1196,6 +1373,7 @@ const Dashboard: React.FC<Props> = ({ navigation }) => {
       </ScrollView>
       {renderBottomNav()}
       {renderNewCustomerModal()}
+      {renderOrderModal()}
 
       {/* Success Modal */}
       <Modal visible={showSuccess} transparent animationType="fade">
@@ -1384,6 +1562,87 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 8,
   },
+
+  orderProductCard: {
+  backgroundColor: '#F9FAFB',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 16,
+},
+orderProductHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 12,
+},
+orderProductTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#111827',
+},
+orderProductTotal: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginTop: 12,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#E5E7EB',
+},
+orderTotalAmount: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#1E3EA6',
+},
+addProductButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 12,
+  borderWidth: 1,
+  borderColor: '#1E3EA6',
+  borderRadius: 8,
+  borderStyle: 'dashed',
+  marginBottom: 20,
+  gap: 8,
+},
+addProductButtonText: {
+  color: '#1E3EA6',
+  fontSize: 14,
+  fontWeight: '500',
+},
+orderSummary: {
+  backgroundColor: '#F3F4F6',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 20,
+},
+orderSummaryTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#111827',
+  marginBottom: 12,
+},
+orderSummaryRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  marginBottom: 8,
+},
+orderSummaryTotal: {
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#D1D5DB',
+},
+orderSummaryTotalText: {
+  fontWeight: '600',
+  color: '#111827',
+},
+orderSummaryTotalAmount: {
+  fontWeight: '600',
+  color: '#1E3EA6',
+  fontSize: 16,
+},
 
 });
 

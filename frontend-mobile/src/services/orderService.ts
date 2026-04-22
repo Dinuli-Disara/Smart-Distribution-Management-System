@@ -1,158 +1,109 @@
-// frontend-mobile/src/services/orderService.ts
+// frontend-mobile/src/services/orderService.js
 import api from './api';
 
-export interface OrderItem {
-  product_id: number;
-  product_name: string;
-  quantity: number;
-  price: number;
-  total: number;
-}
-
-export interface Order {
-  order_id: number;
-  order_number: string;
-  customer_id: number;
-  customer_name: string;
-  order_date: string;
-  total_amount: number;
-  discount_amount: number;
-  net_amount: number;
-  payment_status: 'PAID' | 'PARTIAL' | 'PENDING';
-  order_status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
-  items: OrderItem[];
-  payments?: any[];
-}
-
-export interface CreateOrderData {
-  customer_id: number;
-  items: { product_id: number; quantity: number; price: number }[];
-  discount?: number;
-  notes?: string;
-}
-
 export interface PreOrder {
+  [x: string]: string | number | Date;
   pre_order_id: number;
   pre_order_number: string;
-  customer_id: number;
   customer_name: string;
-  created_at: string;
-  expected_delivery_date?: string;
-  items: OrderItem[];
-  total_amount: number;
-  discount_percentage: number;
+  status: string;
   net_amount: number;
-  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'DELIVERED' | 'CANCELLED' | 'DECLINED';
-  notes?: string;
+  items?: any[];
 }
 
-export interface CreatePreOrderData {
-  customer_id: number;
-  items: { product_id: number; quantity: number; price: number }[];
-  expected_delivery_date?: string;
-  notes?: string;
-}
+class OrderService {
+  // Create a new order
+  async createOrder(orderData: { customer_id: number; items: any[] }) {
+    const response: any = await api.post('/orders', orderData);
+    return response;
+  }
 
-const orderService = {
-  // Get customer orders
-  getCustomerOrders: async (customerId: number, page: number = 1, limit: number = 20): Promise<{ orders: Order[], total: number }> => {
+  // Get all orders for sales rep
+  async getOrders(filters?: { status?: string; customer_id?: number }) {
+    const response: any = await api.get('/orders', { params: filters });
+    return response;
+  }
+
+  // Get single order details
+  async getOrder(orderId: number) {
+    const response: any = await api.get(`/orders/${orderId}`);
+    return response;
+  }
+
+  // Get sales rep pre-orders (for backward compatibility)
+  async getSalesRepPreOrders() {
+    const response: any = await api.get('/orders', { params: { status: 'PENDING' } });
+    return response.data || [];
+  }
+
+  // Update pre-order status (for backward compatibility)
+  async updatePreOrderStatus(orderId: number, status: string) {
+    const response: any = await api.put(`/orders/${orderId}/status`, { order_status: status });
+    return response;
+  }
+
+  // ============ CUSTOMER METHODS ============
+  
+  // Get customer dashboard data (orders, pre-orders, payments, loyalty)
+  async getCustomerDashboard() {
     try {
-      const response: any = await api.get(`/customers/${customerId}/orders`, {
-        params: { page, limit }
-      });
-      if (response.success && response.data) {
-        return response.data;
-      }
-      return { orders: [], total: 0 };
+      const response: any = await api.get('/customer/dashboard');
+      return response;
+    } catch (error: any) {
+      console.error('Get customer dashboard error:', error);
+      return { success: false, data: { orders: [], pre_orders: [], payments: [], loyalty: null } };
+    }
+  }
+
+  // Get customer orders
+  async getCustomerOrders() {
+    try {
+      const response: any = await api.get('/customer/orders');
+      return response;
     } catch (error: any) {
       console.error('Get customer orders error:', error);
-      return { orders: [], total: 0 };
+      return { success: false, data: [] };
     }
-  },
-
-  // Get order details
-  getOrderDetails: async (orderId: number): Promise<Order> => {
-    try {
-      const response: any = await api.get(`/orders/${orderId}`);
-      if (response.success && response.data) {
-        return response.data;
-      }
-      throw new Error('Order not found');
-    } catch (error: any) {
-      console.error('Get order details error:', error);
-      throw error;
-    }
-  },
-
-  // Create new order
-  createOrder: async (orderData: CreateOrderData): Promise<Order> => {
-    try {
-      const response: any = await api.post('/orders', orderData);
-      if (response.success && response.data) {
-        return response.data;
-      }
-      throw new Error(response.message || 'Failed to create order');
-    } catch (error: any) {
-      console.error('Create order error:', error);
-      throw error;
-    }
-  },
+  }
 
   // Get customer pre-orders
-  getCustomerPreOrders: async (customerId: number): Promise<PreOrder[]> => {
+  async getCustomerPreOrders() {
     try {
-      const response: any = await api.get(`/customers/${customerId}/pre-orders`);
-      if (response.success && response.data) {
-        return response.data;
-      }
-      return [];
+      const response: any = await api.get('/customer/pre-orders');
+      return response;
     } catch (error: any) {
       console.error('Get customer pre-orders error:', error);
-      return [];
+      return { success: false, data: [] };
     }
-  },
+  }
 
-  // Get sales rep pre-orders
-  getSalesRepPreOrders: async (): Promise<PreOrder[]> => {
+  // Get customer payment history
+  async getCustomerPayments() {
     try {
-      const response: any = await api.get('/pre-orders');
-      if (response.success && response.data) {
-        return response.data;
-      }
-      return [];
+      const response: any = await api.get('/customer/payments');
+      return response;
     } catch (error: any) {
-      console.error('Get sales rep pre-orders error:', error);
-      return [];
+      console.error('Get customer payments error:', error);
+      return { success: false, data: [] };
     }
-  },
+  }
 
-  // Create pre-order
-  createPreOrder: async (preOrderData: CreatePreOrderData): Promise<PreOrder> => {
+  // Get customer loyalty stats
+  async getCustomerLoyaltyStats() {
     try {
-      const response: any = await api.post('/pre-orders', preOrderData);
-      if (response.success && response.data) {
-        return response.data;
-      }
-      throw new Error(response.message || 'Failed to create pre-order');
+      const response: any = await api.get('/customer/loyalty');
+      return response;
     } catch (error: any) {
-      console.error('Create pre-order error:', error);
-      throw error;
+      console.error('Get customer loyalty error:', error);
+      return { success: false, data: null };
     }
-  },
+  }
 
-  // Update pre-order status (for sales rep)
-  updatePreOrderStatus: async (preOrderId: number, status: PreOrder['status'], notes?: string): Promise<PreOrder> => {
-    try {
-      const response: any = await api.put(`/pre-orders/${preOrderId}/status`, { status, notes });
-      if (response.success && response.data) {
-        return response.data;
-      }
-      throw new Error(response.message || 'Failed to update pre-order status');
-    } catch (error: any) {
-      console.error('Update pre-order status error:', error);
-      throw error;
-    }
-  },
-};
+  // Update customer profile
+  async updateCustomerProfile(profileData: any) {
+    const response: any = await api.put('/customer/profile', profileData);
+    return response;
+  }
+}
 
-export default orderService;
+export default new OrderService();

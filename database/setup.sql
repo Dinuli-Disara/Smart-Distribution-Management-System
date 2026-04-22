@@ -1,7 +1,6 @@
 -- Manjula Marketing Distribution Management System
--- Corrected Database Schema
 
--- Drop database if exists (CAREFUL IN PRODUCTION!)
+-- Drop database if exists
 DROP DATABASE IF EXISTS manjula_marketing;
 
 -- Create database with proper character set

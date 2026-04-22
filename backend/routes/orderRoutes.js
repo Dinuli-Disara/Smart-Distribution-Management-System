@@ -3,23 +3,19 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const {
-  getAllOrders,
-  getOrder,
   createOrder,
-  updateOrderStatus,
-  generateInvoice
+  getAllOrders,
+  getOrder
 } = require('../controllers/orderController');
 
 // Protect all routes
 router.use(protect);
 
-// CRUD routes
+// Routes
 router.route('/')
-  .get(getAllOrders)
-  .post(authorize('Owner', 'Clerk', 'Sales Representative'), createOrder);
+  .post(authorize('Sales Representative', 'Clerk', 'Owner'), createOrder)
+  .get(getAllOrders);
 
 router.get('/:id', getOrder);
-router.put('/:id/status', updateOrderStatus);
-router.post('/:id/invoice', generateInvoice);
 
 module.exports = router;

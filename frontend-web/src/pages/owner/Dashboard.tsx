@@ -1,10 +1,9 @@
 // frontend-web/src/pages/owner/Dashboard.tsx
 import DashboardLayout from "../../components/layout/DashboardLayout";
-import { BarChart3, Users, Package, Truck, FileText, CheckCircle } from "lucide-react";
+import { BarChart3, Users, Package, Truck, FileText } from "lucide-react";
 import DashboardView from "./DashboardView";
 import EmployeesView from "./EmployeesView";
 import InventoryView from "./InventoryView";
-import VansRoutesView from "./VanRoutesView";
 import { ReportsView } from "./ReportsView";
 import RouteApprovals from "./VanRoutesView";
 
@@ -15,7 +14,7 @@ const navItems = [
   { id: 'vans', label: 'Vans & Routes', icon: Truck },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
-
+  
 const views = {
   dashboard: DashboardView,
   employees: EmployeesView,

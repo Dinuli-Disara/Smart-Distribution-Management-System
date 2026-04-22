@@ -270,3 +270,82 @@ exports.getCustomerStats = async (req, res) => {
     });
   }
 };
+
+// @desc    Get customer dashboard data (orders, pre-orders, payments)
+// @route   GET /api/customer/dashboard
+// @access  Private (Customer only)
+exports.getCustomerDashboard = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+
+    // Get orders
+    const orders = await customerService.getCustomerOrders(customerId);
+    
+    // Get pre-orders
+    const preOrders = await customerService.getCustomerPreOrders(customerId);
+    
+    // Get payments
+    const payments = await customerService.getCustomerPayments(customerId);
+    
+    // Get loyalty stats
+    const loyaltyStats = await customerService.getCustomerLoyaltyStats(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orders: orders || [],
+        pre_orders: preOrders || [],
+        payments: payments || [],
+        loyalty: loyaltyStats
+      }
+    });
+  } catch (error) {
+    console.error('Get customer dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer dashboard data'
+    });
+  }
+};
+
+// @desc    Get customer pre-orders
+// @route   GET /api/customer/pre-orders
+// @access  Private (Customer only)
+exports.getCustomerPreOrders = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    const preOrders = await customerService.getCustomerPreOrders(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: preOrders
+    });
+  } catch (error) {
+    console.error('Get customer pre-orders error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pre-orders'
+    });
+  }
+};
+
+// @desc    Get customer loyalty statistics
+// @route   GET /api/customer/loyalty
+// @access  Private (Customer only)
+exports.getCustomerLoyalty = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    const loyaltyStats = await customerService.getCustomerLoyaltyStats(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: loyaltyStats
+    });
+  } catch (error) {
+    console.error('Get customer loyalty error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch loyalty statistics'
+    });
+  }
+};
