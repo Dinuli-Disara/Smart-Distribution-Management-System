@@ -571,6 +571,48 @@ const CustomerDashboard: React.FC<Props> = ({ navigation }) => {
         }
     };
 
+    // In your customer dashboard component
+    const loadDashboardData = async () => {
+        try {
+            setLoading(true);
+            const response = await orderService.getCustomerDashboard();
+
+            if (response.success) {
+                setPreOrders(response.data.orders || []);
+                setPreOrders(response.data.pre_orders || []);
+                setPayments(response.data.payments || []);
+                setLoyaltyStats(response.data.loyalty);
+            }
+        } catch (error) {
+            console.error('Load dashboard error:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Or load individually with fallbacks
+    const loadData = async () => {
+        try {
+            // Load orders
+            const ordersRes = await orderService.getCustomerOrders();
+            if (ordersRes.success) setPreOrders(ordersRes.data);
+
+            // Load pre-orders
+            const preOrdersRes = await orderService.getCustomerPreOrders();
+            if (preOrdersRes.success) setPreOrders(preOrdersRes.data);
+
+            // Load payments
+            const paymentsRes = await orderService.getCustomerPayments();
+            if (paymentsRes.success) setPayments(paymentsRes.data);
+
+            // Load loyalty
+            const loyaltyRes = await orderService.getCustomerLoyaltyStats();
+            if (loyaltyRes.success) setLoyaltyStats(loyaltyRes.data);
+        } catch (error) {
+            console.error('Load data error:', error);
+        }
+    };
+
     // ==================== RENDER METHODS ====================
 
     const renderHeader = () => (

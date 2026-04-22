@@ -17,7 +17,7 @@ import { RootStackParamList } from './navigation/types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // For development - get your local IP
-const LOCAL_IP = '10.154.171.38'; // Change this to actual IP
+const LOCAL_IP = '10.225.244.38'; // Change this to actual IP
 const DEV_LINK = `exp://${LOCAL_IP}:8081`;
 
 const App = () => {

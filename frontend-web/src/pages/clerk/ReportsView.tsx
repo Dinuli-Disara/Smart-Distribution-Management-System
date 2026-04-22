@@ -45,9 +45,9 @@ export function ReportsView({ onNavigate }: ReportsPageProps) {
   ];
 
   const stockExpiryData = [
-    { product: 'Product A', batch: 'B001', quantity: 100, expiryDate: '2025-10-25', daysLeft: 6 },
-    { product: 'Product C', batch: 'B042', quantity: 50, expiryDate: '2025-10-28', daysLeft: 9 },
-    { product: 'Product B', batch: 'B023', quantity: 75, expiryDate: '2025-11-02', daysLeft: 14 },
+    { product: 'Face Wash 200ml', batch: 'B001', quantity: 100, expiryDate: '2025-10-25', daysLeft: 6 },
+    { product: 'Conditioner 100ml', batch: 'B042', quantity: 50, expiryDate: '2025-10-28', daysLeft: 9 },
+    { product: 'Shampoo 100ml', batch: 'B023', quantity: 75, expiryDate: '2025-11-02', daysLeft: 14 },
   ];
 
   const customerSalesData = [
@@ -58,10 +58,10 @@ export function ReportsView({ onNavigate }: ReportsPageProps) {
   ];
 
   const routePerformanceData = [
-    { route: 'Route 1 - North', customers: 12, orders: 45, revenue: 85000 },
-    { route: 'Route 2 - South', customers: 15, orders: 52, revenue: 98000 },
-    { route: 'Route 3 - East', customers: 10, orders: 38, revenue: 72000 },
-    { route: 'Route 4 - West', customers: 14, orders: 48, revenue: 88000 },
+    { route: 'Battaramulla 1 ', customers: 12, orders: 45, revenue: 85000 },
+    { route: 'Homagama 2', customers: 15, orders: 52, revenue: 98000 },
+    { route: 'Homagama 3', customers: 10, orders: 38, revenue: 72000 },
+    { route: 'Kiribathgoda 4', customers: 14, orders: 48, revenue: 88000 },
   ];
 
   const reportTypes = [

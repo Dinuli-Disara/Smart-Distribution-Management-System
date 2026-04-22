@@ -9,9 +9,7 @@ const {
 
 // Protect all routes - protect is a middleware function
 router.use(protect);
-
-// Routes - only accessible by Owner
-router.get('/available', authorize('Owner'), getAvailableRoutes);
-router.get('/', authorize('Owner'), getAllRoutes);
+router.get('/available',authorize('Owner', 'Clerk'), getAvailableRoutes);
+router.get('/', getAllRoutes);
 
 module.exports = router;

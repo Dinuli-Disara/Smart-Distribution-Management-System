@@ -6,6 +6,8 @@ import InventoryView from "./InventoryView";
 import PaymentsView from "./PaymentsView";
 import InvoicesView from "./InvoicesView";
 import {ReportsView} from "./ReportsView";
+import RoutesView from "./InvoicesView";
+import RoutePlanner from "./InvoicesView";
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -20,8 +22,7 @@ const views = {
   dashboard: ClerkDashboardView,
   inventory: InventoryView,
   payments: PaymentsView,
-  invoices: InvoicesView,
-  routes: () => <RoutesView onNavigate={() => {}} />,
+  routes: RoutePlanner,
   reports: () => <ReportsView onNavigate={() => {}} />,
 };
 

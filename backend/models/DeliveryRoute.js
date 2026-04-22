@@ -31,4 +31,16 @@ const DeliveryRoute = sequelize.define('DeliveryRoute', {
   updatedAt: 'updated_at'
 });
 
+DeliveryRoute.associate = (models) => {
+  DeliveryRoute.belongsTo(models.DeliveryArea, {
+    foreignKey: 'area_id',
+    as: 'area'
+  });
+  
+  DeliveryRoute.hasMany(models.RoutePlan, {
+    foreignKey: 'route_id',
+    as: 'routePlans'
+  });
+};
+
 module.exports = DeliveryRoute;

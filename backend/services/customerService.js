@@ -1,6 +1,7 @@
 // backend/services/customerService.js
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
+const bcrypt = require('bcryptjs');
 
 class CustomerService {
   // Get all customers
@@ -116,12 +117,15 @@ class CustomerService {
   }
 
   // Create new customer
+
   async createCustomer(data) {
+    console.log('Creating customer with data:', data);
+
     // Check if contact already exists
     if (data.contact) {
       const [existing] = await sequelize.query(`
-        SELECT customer_id FROM Customer WHERE contact = ?
-      `, {
+      SELECT customer_id FROM Customer WHERE contact = ?
+    `, {
         replacements: [data.contact]
       });
 
@@ -130,38 +134,77 @@ class CustomerService {
       }
     }
 
-    // Check if email already exists
+    // Check if email already exists (only if email is provided)
     if (data.email) {
       const [existing] = await sequelize.query(`
-        SELECT customer_id FROM Customer WHERE email = ?
-      `, {
+      SELECT customer_id FROM Customer WHERE email = ?
+    `, {
         replacements: [data.email]
       });
 
-      if (existing.length > 0) {
+      if (existing && existing.length > 0) {
         throw new Error('Email already exists');
       }
     }
 
+    // Check if username already exists
+    if (data.username) {
+      const [existing] = await sequelize.query(`
+      SELECT customer_id FROM Customer WHERE username = ?
+    `, {
+        replacements: [data.username]
+      });
+
+      if (existing.length > 0) {
+        throw new Error('Username already exists. Please choose another one.');
+      }
+    }
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(data.password, salt);
+
     // Insert customer
     const [result] = await sequelize.query(`
-      INSERT INTO Customer (name, contact, email, address, route_id, loyalty_points, loyalty_level_id, username, password)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, {
+    INSERT INTO Customer (
+      name,
+      shop_name,
+      contact,
+      email,
+      address,
+      route_id,
+      username,
+      password,
+      loyalty_points,
+      loyalty_level_id,
+      is_active,
+      created_at,
+      modified_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+  `, {
       replacements: [
         data.name,
-        data.contact || null,
+        data.shop_name || data.name,
+        data.contact,
         data.email || null,
         data.address || null,
-        data.route_id || null,
+        data.route_id || 1,
+        data.username,
+        hashedPassword,
         0, // Initial loyalty points
-        1, // Default loyalty level (Blue)
-        data.username || null,
-        data.password || null
+        1, // Default loyalty level
+        true // is_active
       ]
     });
 
-    return await this.getCustomerById(result);
+    console.log('Customer created with ID:', result);
+
+    // Get the inserted customer ID
+    const customerId = result;
+
+    // Return the created customer
+    return await this.getCustomerById(customerId);
   }
 
   // Update customer

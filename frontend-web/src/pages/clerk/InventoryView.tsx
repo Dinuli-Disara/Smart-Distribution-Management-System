@@ -872,20 +872,21 @@ export default function InventoryView() {
               <h4 className="font-semibold text-sm text-gray-700">Add Item</h4>
 
               <div className="space-y-2">
-                <Label htmlFor="transfer-product-select">Product *</Label>
+                <Label htmlFor="receive-product-select">Product *</Label>
                 <select
-                  id="transfer-product-select"
+                  id="receive-product-select"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={currentTransferItem.product_id}
+                  value={currentItem.product_id}
                   onChange={(e) => {
                     const productId = e.target.value;
                     const product = productOptions.find(p => p.product_id.toString() === productId);
-                    setSelectedTransferProduct(product || null);
-                    setCurrentTransferItem({
-                      ...currentTransferItem,
-                      product_id: productId
+                    setSelectedProduct(product || null);
+                    setCurrentItem({
+                      ...currentItem,
+                      product_id: productId,
+                      unit_price: product ? product.unit_price.toString() : ""
                     });
-                    console.log('Selected product:', product);
+                    console.log('Selected product for receive:', product);
                   }}
                   disabled={loadingOptions}
                 >
@@ -895,25 +896,25 @@ export default function InventoryView() {
                   ) : productOptions.length > 0 ? (
                     productOptions.map((product) => (
                       <option key={product.product_id} value={product.product_id}>
-                        {product.product_name} ({product.product_code}) - Available: {product.available_quantity || 0} units
+                        {product.product_name} ({product.product_code})
                       </option>
                     ))
                   ) : (
-                    <option disabled>No products with available stock</option>
+                    <option disabled>No products available</option>
                   )}
                 </select>
                 {!loadingOptions && productOptions.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">
-                    No products available in store. Please receive stock first.
+                    No products available. Please add products first.
                   </p>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity *</Label>
+                  <Label htmlFor="receive-quantity">Quantity *</Label>
                   <Input
-                    id="quantity"
+                    id="receive-quantity"
                     type="number"
                     placeholder="Enter quantity"
                     value={currentItem.quantity}
@@ -923,9 +924,9 @@ export default function InventoryView() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="unit-price">Unit Price (LKR) *</Label>
+                  <Label htmlFor="receive-unit-price">Unit Price (LKR) *</Label>
                   <Input
-                    id="unit-price"
+                    id="receive-unit-price"
                     type="number"
                     placeholder="Enter price"
                     value={currentItem.unit_price}
@@ -938,9 +939,9 @@ export default function InventoryView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="batch-no">Batch No. *</Label>
+                  <Label htmlFor="receive-batch-no">Batch No. *</Label>
                   <Input
-                    id="batch-no"
+                    id="receive-batch-no"
                     type="text"
                     placeholder="Enter batch number"
                     value={currentItem.batch_number}
@@ -949,9 +950,9 @@ export default function InventoryView() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="expiry-date">Expiry Date *</Label>
+                  <Label htmlFor="receive-expiry-date">Expiry Date *</Label>
                   <Input
-                    id="expiry-date"
+                    id="receive-expiry-date"
                     type="date"
                     value={currentItem.expiryDate}
                     onChange={(e) => setCurrentItem({ ...currentItem, expiryDate: e.target.value })}

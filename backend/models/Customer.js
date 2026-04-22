@@ -13,30 +13,25 @@ const Customer = sequelize.define('Customer', {
     type: DataTypes.STRING(100),
     allowNull: false
   },
-  email: {
+  shop_name: {
     type: DataTypes.STRING(100),
-    allowNull: false,
-    unique: true
+    allowNull: true
   },
   contact: {
     type: DataTypes.STRING(15),
     allowNull: false
   },
-  username: {
-    type: DataTypes.STRING(50),
-    allowNull: false,
-    unique: true
-  },
-  password: {
-    type: DataTypes.STRING(255),
-    allowNull: false
-  },
-  shop_name: {
+  email: {
     type: DataTypes.STRING(100),
-    allowNull: true
+    allowNull: true, // Changed to true since email is optional
+    unique: true
   },
   address: {
     type: DataTypes.TEXT,
+    allowNull: true
+  },
+  city: {
+    type: DataTypes.STRING(100),
     allowNull: true
   },
   route_id: {
@@ -47,12 +42,25 @@ const Customer = sequelize.define('Customer', {
       key: 'route_id'
     }
   },
+  username: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    unique: true
+  },
+  password: {
+    type: DataTypes.STRING(255),
+    allowNull: false
+  },
   loyalty_level_id: {
     type: DataTypes.INTEGER,
     defaultValue: 1
   },
   loyalty_points: {
     type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  credit_limit: {
+    type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0
   },
   is_active: {
@@ -72,9 +80,7 @@ const Customer = sequelize.define('Customer', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'modified_at',
-
   freezeTableName: true,
-
   hooks: {
     beforeCreate: async (customer) => {
       if (customer.password) {

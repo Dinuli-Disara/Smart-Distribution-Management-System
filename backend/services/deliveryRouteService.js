@@ -6,10 +6,20 @@ const { Op } = require('sequelize');
 class DeliveryRouteService {
   // Get all routes
   async getAllRoutes() {
-    const routes = await DeliveryRoute.findAll({
-      order: [['route_name', 'ASC']]
-    });
-    return routes;
+    console.log('=== DeliveryRouteService.getAllRoutes called ===');
+    try {
+      const routes = await DeliveryRoute.findAll({
+        where: {
+          is_active: true
+        },
+        order: [['route_name', 'ASC']]
+      });
+      console.log(`Found ${routes.length} routes in database`);
+      return routes;
+    } catch (error) {
+      console.error('Error in getAllRoutes:', error);
+      throw error;
+    }
   }
 
   // Get available routes (not assigned to any active sales rep)

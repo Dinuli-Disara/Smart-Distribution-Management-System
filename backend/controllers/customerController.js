@@ -55,7 +55,18 @@ exports.getCustomer = async (req, res) => {
 // @access  Private (Sales Rep, Clerk, Owner)
 exports.createCustomer = async (req, res) => {
   try {
-    const { name, contact, email, address, route_id } = req.body;
+    const { 
+      name, 
+      contact, 
+      email, 
+      address, 
+      route_id,
+      username,
+      password,
+      shop_name 
+    } = req.body;
+
+    console.log('Received customer data:', req.body); // Debug log
 
     // Validation
     if (!name) {
@@ -65,7 +76,47 @@ exports.createCustomer = async (req, res) => {
       });
     }
 
-    const customer = await customerService.createCustomer(req.body);
+    if (!contact) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contact number is required'
+      });
+    }
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required'
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Prepare customer data
+    const customerData = {
+      name,
+      contact,
+      email: email || null,
+      address: address || null,
+      route_id: route_id || 1,
+      username,
+      password,
+      shop_name: shop_name || name
+    };
+
+    const customer = await customerService.createCustomer(customerData);
 
     res.status(201).json({
       success: true,
@@ -73,10 +124,10 @@ exports.createCustomer = async (req, res) => {
       data: customer
     });
   } catch (error) {
-    console.error('Create customer error:', error);
+    console.error('Create customer error details:', error); // Better error logging
     res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message || 'Failed to create customer'
     });
   }
 };
@@ -216,6 +267,85 @@ exports.getCustomerStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch customer statistics'
+    });
+  }
+};
+
+// @desc    Get customer dashboard data (orders, pre-orders, payments)
+// @route   GET /api/customer/dashboard
+// @access  Private (Customer only)
+exports.getCustomerDashboard = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+
+    // Get orders
+    const orders = await customerService.getCustomerOrders(customerId);
+    
+    // Get pre-orders
+    const preOrders = await customerService.getCustomerPreOrders(customerId);
+    
+    // Get payments
+    const payments = await customerService.getCustomerPayments(customerId);
+    
+    // Get loyalty stats
+    const loyaltyStats = await customerService.getCustomerLoyaltyStats(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orders: orders || [],
+        pre_orders: preOrders || [],
+        payments: payments || [],
+        loyalty: loyaltyStats
+      }
+    });
+  } catch (error) {
+    console.error('Get customer dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer dashboard data'
+    });
+  }
+};
+
+// @desc    Get customer pre-orders
+// @route   GET /api/customer/pre-orders
+// @access  Private (Customer only)
+exports.getCustomerPreOrders = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    const preOrders = await customerService.getCustomerPreOrders(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: preOrders
+    });
+  } catch (error) {
+    console.error('Get customer pre-orders error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pre-orders'
+    });
+  }
+};
+
+// @desc    Get customer loyalty statistics
+// @route   GET /api/customer/loyalty
+// @access  Private (Customer only)
+exports.getCustomerLoyalty = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    const loyaltyStats = await customerService.getCustomerLoyaltyStats(customerId);
+
+    res.status(200).json({
+      success: true,
+      data: loyaltyStats
+    });
+  } catch (error) {
+    console.error('Get customer loyalty error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch loyalty statistics'
     });
   }
 };

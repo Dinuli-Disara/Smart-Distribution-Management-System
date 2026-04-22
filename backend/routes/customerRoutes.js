@@ -1,37 +1,27 @@
 // backend/routes/customerRoutes.js
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const {
-  getAllCustomers,
-  getCustomer,
-  createCustomer,
-  updateCustomer,
+  getCustomerDashboard,
+  getCustomerPreOrders,
+  getCustomerLoyalty,
   getCustomerOrders,
   getCustomerPayments,
-  updateLoyaltyPoints,
-  getCustomerStats
+  updateCustomer
 } = require('../controllers/customerController');
 
-// Protect all routes
+// Protect all routes - only authenticated customers
 router.use(protect);
 
-// Stats route (must be before /:id route)
-router.get('/stats', authorize('Owner', 'Clerk'), getCustomerStats);
+// Customer dashboard and data routes
+router.get('/dashboard', getCustomerDashboard);
+router.get('/pre-orders', getCustomerPreOrders);
+router.get('/loyalty', getCustomerLoyalty);
+router.get('/orders', getCustomerOrders);
+router.get('/payments', getCustomerPayments);
 
-// CRUD routes
-router.route('/')
-  .get(getAllCustomers)
-  .post(authorize('Owner', 'Clerk', 'Sales Representative'), createCustomer);
-
-router.get('/:id', getCustomer);
-
-// Update customer - Owner/Clerk/SalesRep can update any, customers can update their own
-router.put('/:id', updateCustomer);
-
-// Customer-specific routes
-router.get('/:id/orders', getCustomerOrders);
-router.get('/:id/payments', getCustomerPayments);
-router.put('/:id/loyalty', authorize('Owner', 'Clerk'), updateLoyaltyPoints);
+// Customer profile update
+router.put('/profile', updateCustomer);
 
 module.exports = router;

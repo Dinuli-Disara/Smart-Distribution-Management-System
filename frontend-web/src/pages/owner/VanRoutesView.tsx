@@ -1,127 +1,328 @@
-// frontend-web/src/pages/owner/VansRoutesView.tsx
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-import { Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/form-components";
-import { Calendar } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Label } from '../../components/ui/form-components';
+import { CheckCircle, XCircle, Clock, User, Calendar, Truck, MapPin, AlertCircle } from 'lucide-react';
+import api from '../../services/api';
+import { toast } from 'react-hot-toast';
 
-export default function VansRoutesView() {
-  const [showPlanRoute, setShowPlanRoute] = useState(false);
+interface RoutePlan {
+  plan_id: number;
+  planned_date: string;
+  status: string;
+  notes?: string;
+  rejection_reason?: string;
+  requester_name: string;
+  requester_email: string;
+  created_at: string;
+  details: Array<{
+    area_name: string;
+    route_name: string;
+    vehicle_number: string;
+  }>;
+}
 
-  const getNextWeekDates = () => {
-    const dates = [];
-    const today = new Date();
-    for (let i = 1; i <= 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date.toISOString().split('T')[0]);
+export default function RouteApprovals() {
+  const [pendingPlans, setPendingPlans] = useState<RoutePlan[]>([]);
+  const [approvedPlans, setApprovedPlans] = useState<RoutePlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<RoutePlan | null>(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
+
+  useEffect(() => {
+    fetchPendingPlans();
+    fetchApprovedPlans();
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchPendingPlans();
+      fetchApprovedPlans();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchPendingPlans = async () => {
+    try {
+      console.log('Fetching pending plans...');
+      const response = await api.get('/route-plans/pending');
+      console.log('Pending plans response:', response.data);
+      
+      if (response.data.success) {
+        setPendingPlans(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching pending plans:', error);
+      toast.error('Failed to fetch pending approvals');
     }
-    return dates;
   };
 
-  const weekDates = getNextWeekDates();
+  const fetchApprovedPlans = async () => {
+    try {
+      const response = await api.get('/route-plans');
+      if (response.data.success) {
+        const approved = (response.data.data || []).filter((plan: any) => plan.status === 'approved');
+        setApprovedPlans(approved);
+      }
+    } catch (error) {
+      console.error('Error fetching approved plans:', error);
+    }
+  };
 
-  // TODO: Replace with API calls
-  const routeSchedule: Record<string, string[]> = {
-    'Area 1 - Battaramulla': [weekDates[0], weekDates[2], weekDates[4]],
-    'Area 2 - Nugegoda': [weekDates[1], weekDates[3], weekDates[6]],
-    'Area 3 - Kiribathgoda': [weekDates[0], weekDates[3], weekDates[5]],
+  const handleApprove = async (planId: number) => {
+    setLoading(true);
+    try {
+      const response = await api.put(`/route-plans/${planId}/approve`);
+      
+      if (response.data.success) {
+        toast.success('Route plan approved successfully');
+        fetchPendingPlans();
+        fetchApprovedPlans();
+        setSelectedPlan(null);
+      }
+    } catch (error: any) {
+      console.error('Error approving plan:', error);
+      toast.error(error.response?.data?.message || 'Failed to approve plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+
+    if (!selectedPlan) return;
+
+    setLoading(true);
+    try {
+      const response = await api.put(`/route-plans/${selectedPlan.plan_id}/reject`, {
+        reason: rejectionReason
+      });
+      
+      if (response.data.success) {
+        toast.success('Route plan rejected');
+        fetchPendingPlans();
+        setShowRejectDialog(false);
+        setRejectionReason('');
+        setSelectedPlan(null);
+      }
+    } catch (error: any) {
+      console.error('Error rejecting plan:', error);
+      toast.error(error.response?.data?.message || 'Failed to reject plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
 
   return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Vans & Delivery Routes</CardTitle>
-          <Button onClick={() => setShowPlanRoute(true)} className="bg-blue-900 hover:bg-blue-800">
-            <Calendar className="w-4 h-4 mr-2" />
-            Plan Next Week
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {Object.entries(routeSchedule).map(([area, dates]) => (
-              <div key={area} className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-3">{area}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-                  {weekDates.map((date, idx) => {
-                    const isScheduled = dates.includes(date);
-                    return (
-                      <div
-                        key={idx}
-                        className={`p-3 rounded-lg text-center transition cursor-pointer ${
-                          isScheduled
-                            ? 'bg-blue-900 text-white shadow-md'
-                            : 'bg-white border border-gray-200 hover:border-blue-300'
-                        }`}
-                      >
-                        <p className="text-xs mb-1">
-                          {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
-                        </p>
-                        <p className={`font-semibold ${isScheduled ? 'text-white' : 'text-gray-600'}`}>
-                          {new Date(date).getDate()}
-                        </p>
-                        {isScheduled && (
-                          <p className="text-xs mt-1 opacity-90">Scheduled</p>
+    <div className="space-y-6">
+      <div className="flex gap-4 border-b">
+        <button
+          className={`px-4 py-2 font-medium transition ${
+            activeTab === 'pending' 
+              ? 'text-blue-900 border-b-2 border-blue-900' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('pending')}
+        >
+          Pending Approvals ({pendingPlans.length})
+        </button>
+        <button
+          className={`px-4 py-2 font-medium transition ${
+            activeTab === 'approved' 
+              ? 'text-blue-900 border-b-2 border-blue-900' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('approved')}
+        >
+          Approved Plans ({approvedPlans.length})
+        </button>
+      </div>
+
+      {activeTab === 'pending' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Route Approvals</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pendingPlans.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Pending Approvals</h3>
+                <p className="text-gray-500">All route plans have been reviewed</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingPlans.map((plan) => (
+                  <div key={plan.plan_id} className="border rounded-lg p-4 hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-lg">{formatDate(plan.planned_date)}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <User className="w-4 h-4" />
+                            <span>Requested by: {plan.requester_name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>Requested: {new Date(plan.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          <h4 className="font-medium text-sm text-gray-700">Route Assignments:</h4>
+                          {plan.details && plan.details.map((detail, idx) => (
+                            <div key={idx} className="grid grid-cols-3 gap-4 p-2 bg-gray-50 rounded text-sm">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className="font-medium">{detail.area_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Truck className="w-4 h-4 text-gray-500" />
+                                <span>{detail.route_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Truck className="w-4 h-4 text-gray-500" />
+                                <span>Van: {detail.vehicle_number}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {plan.notes && (
+                          <div className="mt-2 p-2 bg-yellow-50 rounded text-sm">
+                            <span className="font-medium">Clerk's Notes:</span> {plan.notes}
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                      
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          onClick={() => handleApprove(plan.plan_id)}
+                          disabled={loading}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedPlan(plan);
+                            setShowRejectDialog(true);
+                          }}
+                          disabled={loading}
+                          variant="destructive"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Legend */}
-          <div className="mt-6 flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-900 rounded"></div>
-              <span className="text-gray-600">Scheduled Day</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-white border border-gray-200 rounded"></div>
-              <span className="text-gray-600">Available Day</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {activeTab === 'approved' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Approved Route Plans</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {approvedPlans.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                  <Calendar className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Approved Plans</h3>
+                <p className="text-gray-500">Approved route plans will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {approvedPlans.map((plan) => (
+                  <div key={plan.plan_id} className="border rounded-lg p-4 bg-green-50">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-5 h-5 text-green-600" />
+                          <span className="font-semibold text-lg">{formatDate(plan.planned_date)}</span>
+                        </div>
+                        <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded">Approved</span>
+                      </div>
+                      
+                      <div className="space-y-2 mt-2">
+                        {plan.details && plan.details.map((detail, idx) => (
+                          <div key={idx} className="grid grid-cols-3 gap-4 p-2 bg-white rounded text-sm">
+                            <div className="font-medium">{detail.area_name}</div>
+                            <div>{detail.route_name}</div>
+                            <div>Van: {detail.vehicle_number}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Plan Route Dialog */}
-      <Dialog open={showPlanRoute} onOpenChange={setShowPlanRoute}>
+      {/* Rejection Dialog */}
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Plan Next Week Routes</DialogTitle>
+            <DialogTitle>Reject Route Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Select Date</Label>
-              <Input type="date" />
+              <Label>Rejection Reason *</Label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please provide a reason for rejection..."
+                rows={3}
+                className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                required
+              />
             </div>
-            <div className="space-y-2">
-              <Label>Select Route</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                <option value="">Select route</option>
-                <option value="area1">Area 1 - Battaramulla</option>
-                <option value="area2">Area 2 - Nugegoda</option>
-                <option value="area3">Area 3 - Kiribathgoda</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Assign Van</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                <option value="">Select van</option>
-                <option value="van1">Van 1 - ABC-1234</option>
-                <option value="van2">Van 2 - DEF-5678</option>
-                <option value="van3">Van 3 - GHI-9012</option>
-              </select>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button className="flex-1 bg-blue-900 hover:bg-blue-800">Confirm</Button>
-              <Button onClick={() => setShowPlanRoute(false)} variant="outline" className="flex-1">Cancel</Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleReject}
+                disabled={loading}
+                variant="destructive"
+                className="flex-1"
+              >
+                Confirm Rejection
+              </Button>
+              <Button onClick={() => setShowRejectDialog(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

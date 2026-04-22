@@ -24,4 +24,16 @@ const DeliveryArea = sequelize.define('DeliveryArea', {
   updatedAt: 'updated_at'
 });
 
+DeliveryArea.associate = (models) => {
+  DeliveryArea.hasMany(models.DeliveryRoute, {
+    foreignKey: 'area_id',
+    as: 'routes'
+  });
+  
+  DeliveryArea.hasMany(models.RoutePlan, {
+    foreignKey: 'area_id',
+    as: 'routePlans'
+  });
+};
+
 module.exports = DeliveryArea;
